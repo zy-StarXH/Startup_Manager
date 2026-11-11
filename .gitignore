@@ -1,0 +1,14 @@
+.tools/
+.nuget/
+.agents/
+.build/
+artifacts/
+_qa/
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+sdk-install.log
+TestResults/
+.zcode/

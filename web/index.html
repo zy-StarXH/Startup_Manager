@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>启动项管理器</title>
+<meta name="color-scheme" content="light">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f6cbd'/%3E%3Cpath d='M17.7 4 8 17h6.5l-1.2 11L24 14h-6.5l.2-10Z' fill='white'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4.6 13.4h5.7L9.2 22l8.6-11.5h-5.6L13 2Z" fill="currentColor"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M4 17l3 3 3-3M17 20V4M14 7l3-3 3 3"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7A1.5 1.5 0 0 1 5 5.5h4l2 2h8A1.5 1.5 0 0 1 20.5 9v9.5A1.5 1.5 0 0 1 19 20H5a1.5 1.5 0 0 1-1.5-1.5V7Z"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="3.5"/><path d="m10.5 12.5 9-9M16.5 3.5 20 7M13.5 6.5 17 10"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="6" rx="1.5"/><rect x="3.5" y="13.5" width="17" height="6" rx="1.5"/><path d="M7 7.5h.01M7 16.5h.01M11 7.5h5.5M11 16.5h5.5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.8 5.8v5.4c0 4.3 3 8 7.2 9.8 4.2-1.8 7.2-5.5 7.2-9.8V5.8L12 3Z"/><path d="m9.2 11.8 2 2 3.8-3.8"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9"/><path d="M6.7 6.3a8 8 0 1 0 10.6 0"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 13 4 8l5-5"/><path d="M4 8h9.5a6.5 6.5 0 0 1 0 13H9"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.5"/><path d="M3.5 3.5v5h5"/><path d="M12 8v4l2.5 2"/></symbol>
+  <symbol id="i-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4 10.5 13.5"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="8.5" width="11" height="11" rx="1.7"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/></symbol>
+  <symbol id="i-apps" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4.5"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-database" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.55 3.36 2.8 7.5 2.8s7.5-1.25 7.5-2.8v-13"/><path d="M4.5 12c0 1.55 3.36 2.8 7.5 2.8s7.5-1.25 7.5-2.8"/></symbol>
+</svg>
+
+<div class="app">
+  <div class="shell">
+    <nav class="sidebar" aria-label="主导航">
+      <div class="nav-section">
+        <button class="nav-item active" data-page="startup" aria-current="page" title="启动项">
+          <svg aria-hidden="true"><use href="#i-apps"/></svg>
+          <span class="nav-label">启动项</span>
+          <span class="nav-count" id="navCount">–</span>
+        </button>
+        <button class="nav-item" data-page="backup" title="恢复中心">
+          <svg aria-hidden="true"><use href="#i-history"/></svg>
+          <span class="nav-label">恢复中心</span>
+          <span class="nav-count" id="backupNavCount">–</span>
+        </button>
+      </div>
+      <div class="sidebar-bottom">
+        <div class="scan-meta">
+          <span class="scan-dot" id="scanDot"></span>
+          <div class="scan-text">
+            <div class="scan-title" id="scanTitle">正在检查启动来源</div>
+            <div class="scan-time" id="lastScan">请稍候…</div>
+          </div>
+          <button class="scan-refresh" data-action="rescan" title="重新扫描" aria-label="重新扫描启动项">
+            <svg aria-hidden="true"><use href="#i-refresh"/></svg>
+          </button>
+        </div>
+        <div class="side-divider"></div>
+        <button class="nav-item" data-page="settings" title="设置">
+          <svg aria-hidden="true"><use href="#i-sliders"/></svg>
+          <span class="nav-label">设置</span>
+        </button>
+        <div class="sidebar-version">版本 1.0.0</div>
+      </div>
+    </nav>
+
+    <main class="content" id="content">
+      <!-- ============ Startup page ============ -->
+      <section class="page" id="page-startup">
+        <div class="page-head">
+          <div>
+            <h1>启动项</h1>
+            <p class="subtitle" aria-live="polite">
+              <span id="summaryText">正在读取启动项…</span>
+              <span id="metaChip" class="meta-chip" hidden></span>
+            </p>
+          </div>
+          <div class="head-actions">
+            <div class="search" id="searchBox">
+              <svg aria-hidden="true"><use href="#i-search"/></svg>
+              <input id="searchInput" type="text" placeholder="搜索名称、发布者或路径" autocomplete="off" spellcheck="false" aria-label="搜索启动项">
+              <button class="search-clear" data-action="clear-search" aria-label="清除搜索">
+                <svg aria-hidden="true"><use href="#i-close"/></svg>
+              </button>
+            </div>
+            <button class="icon-btn" id="refreshButton" data-action="rescan" title="重新扫描启动项" aria-label="重新扫描启动项">
+              <svg aria-hidden="true"><use href="#i-refresh"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="warnings-banner" id="warningsBanner" role="status" hidden>
+          <svg aria-hidden="true"><use href="#i-alert"/></svg>
+          <div class="warnings-body">
+            <div class="warnings-title" id="warningsTitle">扫描提示</div>
+            <ul class="warnings-list" id="warningsList"></ul>
+          </div>
+          <button class="banner-close" data-action="dismiss-warnings" aria-label="关闭扫描提示">
+            <svg aria-hidden="true"><use href="#i-close"/></svg>
+          </button>
+        </div>
+
+        <div class="category-tabs" role="tablist" aria-label="启动项分类">
+          <button type="button" class="category-tab active" data-category="startup" role="tab" aria-selected="true" aria-controls="startupList">
+            启动项 <span class="cat-num" id="categoryStartupCount">–</span>
+          </button>
+          <button type="button" class="category-tab" data-category="service" role="tab" aria-selected="false" aria-controls="startupList">
+            服务项 <span class="cat-num" id="categoryServiceCount">–</span>
+          </button>
+          <button type="button" class="category-tab" data-category="task" role="tab" aria-selected="false" aria-controls="startupList">
+            计划任务 <span class="cat-num" id="categoryTaskCount">–</span>
+          </button>
+        </div>
+
+        <div class="toolbar">
+          <div class="segmented" role="tablist" aria-label="按状态筛选">
+            <button class="active" data-filter="all" role="tab" aria-selected="true">全部 <span class="seg-num" id="countAll">–</span></button>
+            <button data-filter="enabled" role="tab" aria-selected="false">已启用 <span class="seg-num" id="countEnabled">–</span></button>
+            <button data-filter="disabled" role="tab" aria-selected="false">已禁用 <span class="seg-num" id="countDisabled">–</span></button>
+          </div>
+          <div class="toolbar-right">
+            <div class="select-wrap">
+              <select class="sort-select" id="sortSelect" aria-label="排序方式">
+                <option value="source" selected>启动来源</option>
+                <option value="name">名称 A–Z</option>
+                <option value="scope">启动范围</option>
+              </select>
+              <svg aria-hidden="true"><use href="#i-chevron-down"/></svg>
+            </div>
+            <button class="btn ghost" id="bulkDisable" data-action="open-bulk-dialog" disabled>
+              <svg aria-hidden="true"><use href="#i-power"/></svg>
+              全部禁用…
+            </button>
+          </div>
+        </div>
+
+        <div class="list-card" id="listCard" aria-busy="true">
+          <div class="list-head">
+            <div>名称</div>
+            <div class="h-source">启动来源</div>
+            <div class="h-scope">启动范围</div>
+            <div class="h-actions">自启动</div>
+          </div>
+          <div class="list-body" id="startupList"></div>
+        </div>
+        <div class="list-footnote">
+          <svg aria-hidden="true"><use href="#i-shield"/></svg>
+          修改前会自动备份原始配置，并重新读取系统状态验证；受系统保护的项目不会被修改。
+        </div>
+      </section>
+
+      <!-- ============ Restore center ============ -->
+      <section class="page hidden" id="page-backup">
+        <div class="page-head">
+          <div>
+            <h1>恢复中心</h1>
+            <p class="subtitle">每次修改前的原始配置都会保存在这里，可随时写回系统。</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn" data-action="open-backup-folder">
+              <svg aria-hidden="true"><use href="#i-open"/></svg>
+              打开备份文件夹
+            </button>
+          </div>
+        </div>
+
+        <div class="backup-info">
+          <div class="backup-info-icon">
+            <svg aria-hidden="true"><use href="#i-shield"/></svg>
+          </div>
+          <div>
+            <div class="backup-info-title">自动备份已开启</div>
+            <div class="backup-info-text" id="backupInfoText">修改前会保存原始系统配置。备份位置：<span class="code-inline" id="backupPath">—</span></div>
+          </div>
+        </div>
+
+        <div class="section-title">待恢复的项目 <span class="count" id="backupPageCount">0</span></div>
+        <div class="backup-list" id="backupList"></div>
+
+        <div id="backupHistorySection" hidden>
+          <div class="section-title">历史记录 <span class="count" id="backupHistoryCount">0</span></div>
+          <div class="backup-list" id="backupHistoryList"></div>
+        </div>
+      </section>
+
+      <!-- ============ Settings ============ -->
+      <section class="page hidden" id="page-settings">
+        <div class="page-head">
+          <div>
+            <h1>设置</h1>
+            <p class="subtitle">调整扫描范围、权限与安全备份策略。设置会立即保存。</p>
+          </div>
+        </div>
+        <div id="settingsContent"></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- Detail panel -->
+<aside class="detail" id="detailPanel" aria-hidden="true" aria-label="启动项详情" tabindex="-1">
+  <button class="panel-close" data-action="close-detail" aria-label="关闭详情">
+    <svg aria-hidden="true"><use href="#i-close"/></svg>
+  </button>
+  <div class="detail-scroll" id="detailContent"></div>
+</aside>
+
+<!-- Toasts -->
+<div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="false"></div>
+
+<!-- Confirmation dialog -->
+<div class="dialog-backdrop" id="dialogBackdrop" aria-hidden="true">
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="dialogTitle" aria-describedby="dialogDesc">
+    <div class="dialog-icon"><svg aria-hidden="true"><use href="#i-alert"/></svg></div>
+    <h2 id="dialogTitle">禁用所有可管理的启动项？</h2>
+    <p id="dialogDesc"></p>
+    <div class="dialog-note" id="dialogNote"></div>
+    <div class="dialog-actions">
+      <button class="btn" data-action="close-dialog" id="dialogCancel">取消</button>
+      <button class="btn danger" data-action="confirm-bulk" id="dialogConfirm">禁用</button>
+    </div>
+  </div>
+</div>
+
+<noscript>
+  <div class="noscript">启动项管理器需要启用脚本才能显示界面。</div>
+</noscript>
+
+<script src="demo-data.js"></script>
+<script src="bridge.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,1821 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>启动项管理器 · UI 原型</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f6cbd'/%3E%3Cpath d='M17.7 4 8 17h6.5l-1.2 11L24 14h-6.5l.2-10Z' fill='white'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#f3f3f3;
+    --surface:#ffffff;
+    --text:#1b1b1b;
+    --text-2:#5c5c5c;
+    --text-3:#757575;
+    --border:rgba(0,0,0,.058);
+    --border-strong:rgba(0,0,0,.12);
+    --accent:#0f6cbd;
+    --accent-hover:#115ea3;
+    --accent-tint:#e8f1fb;
+    --hover:rgba(0,0,0,.03);
+    --selected:rgba(15,108,189,.065);
+    --danger:#c42b1c;
+    --success:#0f7b0f;
+    --warn:#9a6700;
+    --radius:8px;
+    --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    --mono:"Cascadia Mono","Cascadia Code",Consolas,"Courier New",monospace;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:var(--font);
+    font-size:14px;
+    line-height:1.5;
+    color:var(--text);
+    background:var(--bg);
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+  button,input,select{font:inherit;color:inherit}
+  button{cursor:pointer}
+  ::selection{background:rgba(15,108,189,.2)}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  .app{
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+    background:
+      radial-gradient(900px 420px at 12% -10%, rgba(120,180,255,.10), transparent 62%),
+      radial-gradient(760px 400px at 92% -6%, rgba(255,205,150,.08), transparent 58%),
+      var(--bg);
+  }
+
+  /* ---------- Title bar ---------- */
+  .titlebar{
+    height:46px;
+    flex:none;
+    display:flex;
+    align-items:center;
+    padding-left:14px;
+    background:rgba(246,247,249,.82);
+    backdrop-filter:blur(28px) saturate(140%);
+    -webkit-backdrop-filter:blur(28px) saturate(140%);
+    border-bottom:1px solid var(--border);
+    position:relative;
+    z-index:20;
+  }
+  .brand{display:flex;align-items:center;gap:9px;font-size:12.5px;font-weight:600;letter-spacing:.005em;user-select:none}
+  .brand-icon{
+    width:22px;height:22px;border-radius:5px;
+    display:grid;place-items:center;color:#fff;
+    background:linear-gradient(135deg,#2b88d8,#005a9e);
+    box-shadow:0 1px 2px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.25);
+  }
+  .brand-icon svg{width:13px;height:13px}
+  .proto-badge{
+    margin-left:2px;
+    font-size:10px;font-weight:600;letter-spacing:.03em;
+    color:#0a5ca8;background:var(--accent-tint);
+    padding:2px 7px;border-radius:999px;
+  }
+  .win-controls{margin-left:auto;display:flex;height:100%}
+  .win-btn{
+    width:46px;height:100%;display:grid;place-items:center;color:#3b3b3b;
+    transition:background .1s,color .1s;
+  }
+  .win-btn svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:.9}
+  .win-btn:hover{background:rgba(0,0,0,.055)}
+  .win-btn.win-close:hover{background:#c42b1c;color:#fff}
+
+  /* ---------- Shell ---------- */
+  .shell{flex:1;display:flex;min-height:0}
+  .sidebar{
+    width:236px;flex:none;
+    display:flex;flex-direction:column;
+    padding:10px 8px 12px;
+    background:rgba(247,247,247,.66);
+    backdrop-filter:blur(30px) saturate(130%);
+    -webkit-backdrop-filter:blur(30px) saturate(130%);
+    border-right:1px solid var(--border);
+  }
+  .nav-section{display:flex;flex-direction:column;gap:1px}
+  .nav-item{
+    position:relative;
+    width:100%;height:36px;
+    display:flex;align-items:center;gap:11px;
+    padding:0 10px;border:0;border-radius:5px;
+    background:transparent;color:#333;
+    font-size:13.5px;font-weight:500;text-align:left;
+    transition:background .1s;
+  }
+  .nav-item svg{width:17px;height:17px;flex:none;color:#5f5f5f}
+  .nav-item:hover{background:rgba(0,0,0,.035)}
+  .nav-item.active{background:rgba(0,0,0,.045);font-weight:600}
+  .nav-item.active::before{
+    content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;
+    border-radius:2px;background:var(--accent);
+  }
+  .nav-item.active svg{color:var(--accent)}
+  .nav-count{
+    margin-left:auto;min-width:20px;height:18px;padding:0 6px;
+    display:inline-grid;place-items:center;
+    border-radius:9px;background:rgba(0,0,0,.05);
+    font-size:10.5px;font-weight:600;color:#666;font-variant-numeric:tabular-nums;
+  }
+  .nav-item.active .nav-count{background:#fff;color:var(--accent);box-shadow:0 1px 1px rgba(0,0,0,.04)}
+  .sidebar-bottom{margin-top:auto;padding:0 2px}
+  .scan-meta{
+    display:flex;align-items:center;gap:9px;
+    padding:10px 9px;border-radius:6px;
+  }
+  .scan-dot{width:7px;height:7px;flex:none;border-radius:50%;background:var(--success);box-shadow:0 0 0 3px rgba(15,123,15,.11)}
+  .scan-text{min-width:0}
+  .scan-title{font-size:11.5px;color:var(--text-2);line-height:1.35;white-space:nowrap}
+  .scan-time{font-size:10.5px;color:#8a8a8a;margin-top:1px;white-space:nowrap}
+  .scan-refresh{
+    margin-left:auto;width:24px;height:24px;flex:none;
+    display:grid;place-items:center;border:0;border-radius:4px;
+    background:transparent;color:#666;
+  }
+  .scan-refresh:hover{background:rgba(0,0,0,.05)}
+  .scan-refresh svg{width:13px;height:13px}
+  .side-divider{height:1px;background:var(--border);margin:7px 8px}
+  .sidebar-version{padding:8px 10px 0;font-size:10.5px;color:#9b9b9b;user-select:none}
+
+  .content{flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;padding:26px 32px 44px;scroll-behavior:smooth}
+  .content::-webkit-scrollbar{width:12px}
+  .content::-webkit-scrollbar-track{background:transparent}
+  .content::-webkit-scrollbar-thumb{
+    background:rgba(0,0,0,.16);border:4px solid transparent;
+    background-clip:content-box;border-radius:8px;
+  }
+  .content::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.28);background-clip:content-box;border-width:3px}
+  .page{max-width:1120px;margin:0 auto;animation:page-in .22s cubic-bezier(.2,0,0,1)}
+  .page.hidden{display:none}
+  @keyframes page-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  /* ---------- Page header ---------- */
+  .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
+  h1{font-size:26px;line-height:1.2;font-weight:600;letter-spacing:-.012em;margin:0 0 6px}
+  .subtitle{
+    margin:0;font-size:12.5px;color:var(--text-2);line-height:1.55;
+    display:flex;flex-wrap:wrap;align-items:center;gap:6px 9px;
+    min-height:22px;
+  }
+  .savings-chip{
+    display:inline-flex;align-items:center;gap:4px;
+    height:22px;padding:0 8px;border-radius:4px;
+    background:#edf7ed;color:#0d5f10;
+    font-size:11.5px;font-weight:500;white-space:nowrap;
+    font-variant-numeric:tabular-nums;
+  }
+  .savings-chip svg{width:13px;height:13px}
+  .savings-chip strong{font-weight:600;margin:0 1px}
+  .head-actions{display:flex;align-items:center;gap:8px;flex:none;padding-top:2px}
+
+  .search{position:relative;width:268px}
+  .search > svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:#6b6b6b;pointer-events:none}
+  .search input{
+    width:100%;height:32px;padding:0 30px 0 31px;
+    border:1px solid rgba(0,0,0,.12);border-bottom-color:rgba(0,0,0,.22);
+    border-radius:4px;background:#fff;
+    font-size:12.5px;outline:none;
+    transition:border-color .1s,box-shadow .1s,background .1s;
+  }
+  .search input::placeholder{color:#8a8a8a}
+  .search input:hover{background:#fbfbfb}
+  .search input:focus{border-color:var(--accent);box-shadow:inset 0 -2px 0 var(--accent);background:#fff}
+  .search-clear{
+    position:absolute;right:4px;top:4px;width:24px;height:24px;
+    display:none;place-items:center;padding:0;border:0;border-radius:4px;
+    background:transparent;color:#5c5c5c;
+  }
+  .search-clear:hover{background:rgba(0,0,0,.06)}
+  .search-clear svg{width:12px;height:12px}
+  .search.has-text .search-clear{display:grid}
+  .icon-btn{
+    width:32px;height:32px;flex:none;display:grid;place-items:center;
+    border:1px solid rgba(0,0,0,.09);border-radius:4px;
+    background:#fff;color:#4a4a4a;transition:background .1s,border-color .1s;
+  }
+  .icon-btn:hover{background:#f7f7f7}
+  .icon-btn:disabled{opacity:.5;pointer-events:none}
+  .icon-btn svg{width:15px;height:15px}
+  .spinning svg{animation:spin .85s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ---------- Prototype banner ---------- */
+  .proto-banner{
+    margin-top:15px;
+    display:flex;align-items:flex-start;gap:9px;
+    padding:9px 9px 9px 12px;
+    border:1px solid #d7e7f7;border-radius:6px;
+    background:#f2f8fe;color:#204e73;
+    font-size:11.5px;line-height:1.55;
+  }
+  .proto-banner > svg{width:15px;height:15px;flex:none;margin-top:1px;color:var(--accent)}
+  .proto-banner b{font-weight:600;color:#173f61}
+  .banner-close{
+    margin-left:auto;width:22px;height:22px;flex:none;
+    display:grid;place-items:center;border:0;border-radius:3px;
+    background:transparent;color:#4a6b8a;
+  }
+  .banner-close:hover{background:rgba(15,108,189,.08)}
+  .banner-close svg{width:11px;height:11px}
+
+  /* ---------- Toolbar ---------- */
+  .toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:18px 0 12px;flex-wrap:wrap}
+  .segmented{display:inline-flex;align-items:center;gap:2px;padding:2px;background:rgba(0,0,0,.05);border-radius:6px}
+  .segmented button{
+    height:28px;padding:0 11px;border:0;border-radius:4px;
+    display:inline-flex;align-items:center;gap:6px;
+    background:transparent;font-size:12.5px;color:#4f4f4f;
+    transition:background .1s,color .1s;
+  }
+  .segmented button:hover{background:rgba(255,255,255,.6)}
+  .segmented button.active{
+    background:#fff;color:#1b1b1b;font-weight:600;
+    box-shadow:0 1px 2px rgba(0,0,0,.09),inset 0 0 0 1px rgba(0,0,0,.03);
+  }
+  .seg-num{
+    min-width:16px;height:16px;padding:0 4px;
+    display:inline-grid;place-items:center;border-radius:8px;
+    background:rgba(0,0,0,.055);color:#757575;
+    font-size:10px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums;
+  }
+  .segmented button.active .seg-num{background:rgba(15,108,189,.1);color:var(--accent)}
+  .toolbar-right{display:flex;align-items:center;gap:6px}
+  .select-wrap{position:relative;display:inline-flex;align-items:center}
+  .select-wrap > svg{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:#555;pointer-events:none}
+  .sort-select{
+    height:30px;padding:0 27px 0 10px;
+    border:1px solid transparent;border-radius:4px;
+    background:transparent;font-size:12.5px;color:#4a4a4a;
+    appearance:none;-webkit-appearance:none;cursor:pointer;outline:none;
+  }
+  .sort-select:hover{background:rgba(0,0,0,.04)}
+  .btn{
+    height:30px;padding:0 11px;
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    border:1px solid rgba(0,0,0,.1);border-radius:4px;
+    background:#fff;color:#333;font-size:12.5px;white-space:nowrap;
+    transition:background .1s,border-color .1s,color .1s;
+  }
+  .btn:hover{background:#f7f7f7}
+  .btn svg{width:14px;height:14px;flex:none}
+  .btn.small{height:28px;font-size:12px;padding:0 9px}
+  .btn.ghost{border-color:transparent;background:transparent;color:#444}
+  .btn.ghost:hover{background:rgba(0,0,0,.045)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+  .btn.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+  .btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+  .btn.danger:hover{background:#a4261a;border-color:#a4261a}
+  .btn:disabled{opacity:.4;cursor:default;pointer-events:none}
+
+  /* ---------- List ---------- */
+  .list-card{
+    background:var(--surface);
+    border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:0 1px 2px rgba(0,0,0,.03);
+    overflow:hidden;
+  }
+  .list-head,.row{
+    display:grid;
+    grid-template-columns:minmax(320px,1fr) 130px 116px 116px;
+    align-items:center;
+    padding:0 16px;
+  }
+  .list-head{
+    height:36px;background:#fcfcfc;border-bottom:1px solid var(--border);
+    font-size:11px;font-weight:600;color:#707070;letter-spacing:.02em;
+  }
+  .h-impact{display:flex;align-items:center;gap:4px}
+  .h-impact svg{width:12px;height:12px;color:#8a8a8a}
+  .h-actions{text-align:right;padding-right:35px}
+  .list-body .row{
+    height:64px;border-bottom:1px solid var(--border);
+    cursor:pointer;position:relative;
+    transition:background .1s;
+  }
+  .list-body .row:last-child{border-bottom:0}
+  .row:hover{background:#fafafa}
+  .row.is-selected{background:var(--selected)}
+  .row.is-selected:hover{background:rgba(15,108,189,.085)}
+  .row.is-selected::before{
+    content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;
+    border-radius:0 2px 2px 0;background:var(--accent);
+  }
+  .row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:2px}
+  .cell-main{display:flex;align-items:center;gap:12px;min-width:0;padding-right:14px}
+  .app-ico{
+    width:34px;height:34px;flex:none;
+    display:grid;place-items:center;
+    border-radius:8px;color:#fff;
+    font-size:13.5px;font-weight:600;line-height:1;
+    background-image:linear-gradient(160deg,rgba(255,255,255,.26),rgba(255,255,255,0) 58%),var(--tile);
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.06),0 1px 1px rgba(0,0,0,.05);
+    user-select:none;
+  }
+  .app-ico svg{width:18px;height:18px;stroke-width:1.7}
+  .app-ico.lg{width:40px;height:40px;border-radius:9px;font-size:16px}
+  .app-ico.lg svg{width:21px;height:21px}
+  .row.is-disabled .app-ico{filter:grayscale(.75);opacity:.55}
+  .cell-main-text{min-width:0}
+  .name-row{display:flex;align-items:center;gap:7px;min-width:0}
+  .app-name{
+    font-size:13.5px;font-weight:600;color:#1b1b1b;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.002em;
+  }
+  .row.is-disabled .app-name{color:#5f5f5f;font-weight:500}
+  .lock-chip{
+    display:inline-flex;align-items:center;gap:3px;flex:none;
+    height:18px;padding:0 5px;border-radius:3px;
+    background:#f0f0f0;color:#5c5c5c;
+    font-size:9.5px;font-weight:600;letter-spacing:.02em;
+  }
+  .lock-chip svg{width:10px;height:10px}
+  .app-meta{
+    margin-top:3px;font-size:11.5px;color:#777;line-height:1.3;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .row.is-disabled .app-meta{color:#8c8c8c}
+  .source-chip{
+    display:inline-flex;align-items:center;gap:5px;
+    height:22px;padding:0 7px;border-radius:4px;
+    font-size:11px;font-weight:500;width:max-content;
+    white-space:nowrap;
+  }
+  .source-chip svg{width:12px;height:12px;flex:none}
+  .source-chip.registry{background:#edf4fb;color:#135a91}
+  .source-chip.folder{background:#fbf3e4;color:#806000}
+  .source-chip.task{background:#f3effb;color:#5b3fa0}
+  .source-chip.service{background:#eaf6f2;color:#126a5a}
+  .impact{display:flex;align-items:center;gap:7px;color:#6b6b6b}
+  .meter{display:flex;align-items:flex-end;gap:2px;height:14px}
+  .meter i{display:block;width:3px;border-radius:1px;background:#d2d2d2}
+  .meter i:nth-child(1){height:6px}
+  .meter i:nth-child(2){height:10px}
+  .meter i:nth-child(3){height:14px}
+  .impact.high{color:var(--danger)}
+  .impact.high .meter i.on{background:#c42b1c}
+  .impact.medium{color:#8a6100}
+  .impact.medium .meter i.on{background:#c98a00}
+  .impact.low{color:#5f5f5f}
+  .impact.low .meter i.on{background:#8f8f8f}
+  .impact-label{font-size:11.5px;font-weight:600}
+  .row.is-disabled .impact{opacity:.65}
+  .cell-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px}
+  .chev{width:16px;height:16px;flex:none;color:#9a9a9a;transition:color .1s,transform .1s}
+  .row:hover .chev{color:#5f5f5f}
+  .row.is-selected .chev{color:var(--accent)}
+  .list-footnote{
+    display:flex;align-items:center;gap:6px;
+    margin-top:10px;padding-left:2px;
+    font-size:11.5px;color:#7a7a7a;line-height:1.5;
+  }
+  .list-footnote svg{width:13px;height:13px;flex:none;color:#6b6b6b}
+
+  /* ---------- Switch ---------- */
+  .switch{
+    position:relative;display:block;flex:none;
+    width:40px;height:20px;padding:0;
+    border:1px solid #8a8a8a;border-radius:999px;
+    background:transparent;
+    transition:background .15s,border-color .15s;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .switch .knob{
+    position:absolute;left:3px;top:50%;
+    width:12px;height:12px;border-radius:50%;
+    background:#5c5c5c;
+    transform:translateY(-50%);
+    box-shadow:0 1px 2px rgba(0,0,0,.18);
+    transition:left .16s cubic-bezier(.4,0,.2,1),width .16s,height .16s,background .16s;
+  }
+  .switch:hover{border-color:#5c5c5c}
+  .switch.on{background:var(--accent);border-color:var(--accent)}
+  .switch.on:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+  .switch.on .knob{left:calc(100% - 17px);width:14px;height:14px;background:#fff}
+  .switch:disabled{cursor:not-allowed}
+  .switch.on:disabled{background:#e4e4e4;border-color:#e4e4e4}
+  .switch.on:disabled .knob{background:#8a8a8a;box-shadow:none}
+  .switch:disabled:hover{border-color:#e4e4e4}
+  .switch.on:disabled:hover{background:#e4e4e4;border-color:#e4e4e4}
+
+  /* ---------- Empty state ---------- */
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:56px 20px;text-align:center}
+  .empty-icon{
+    width:48px;height:48px;margin-bottom:12px;
+    display:grid;place-items:center;border-radius:12px;
+    background:#f3f3f3;color:#777;
+  }
+  .empty-icon svg{width:22px;height:22px}
+  .empty-title{font-size:13.5px;font-weight:600}
+  .empty-desc{font-size:11.5px;color:#777;margin-top:4px;line-height:1.6;max-width:320px}
+  .empty .btn{margin-top:14px}
+
+  /* ---------- Detail panel ---------- */
+  .detail{
+    position:fixed;top:58px;right:18px;bottom:auto;
+    width:400px;max-width:calc(100vw - 36px);
+    max-height:calc(100vh - 76px);
+    display:flex;flex-direction:column;
+    background:var(--surface);
+    border:1px solid rgba(0,0,0,.08);border-radius:10px;
+    box-shadow:0 18px 50px rgba(0,0,0,.16),0 2px 8px rgba(0,0,0,.06);
+    transform:translateX(calc(100% + 30px));
+    opacity:0;visibility:hidden;
+    transition:transform .26s cubic-bezier(.2,0,0,1),opacity .18s,visibility .26s;
+    z-index:50;overflow:hidden;
+  }
+  .detail.open{transform:none;opacity:1;visibility:visible}
+  .detail-scroll{overflow-y:auto;padding:20px;min-height:0}
+  .detail-scroll::-webkit-scrollbar{width:12px}
+  .detail-scroll::-webkit-scrollbar-thumb{background:rgba(0,0,0,.16);border:4px solid transparent;background-clip:content-box;border-radius:8px}
+  .panel-close{
+    position:absolute;top:10px;right:10px;z-index:2;
+    width:28px;height:28px;display:grid;place-items:center;
+    border:0;border-radius:4px;background:transparent;color:#5c5c5c;
+  }
+  .panel-close:hover{background:rgba(0,0,0,.055)}
+  .panel-close svg{width:13px;height:13px}
+  .d-head{display:flex;align-items:center;gap:12px;padding-right:26px;margin-bottom:16px}
+  .d-title{font-size:17px;font-weight:600;margin:0 0 3px;line-height:1.3;word-break:break-word}
+  .d-sub{display:flex;align-items:center;gap:6px;font-size:11px;color:#6b6b6b;line-height:1.45}
+  .status-dot{width:6px;height:6px;flex:none;border-radius:50%;background:var(--success)}
+  .d-sub.off .status-dot{background:#9a9a9a}
+  .d-toggle{
+    display:flex;align-items:center;gap:12px;
+    padding:12px 14px;margin-bottom:18px;
+    background:#f8f8f8;border:1px solid rgba(0,0,0,.045);border-radius:8px;
+  }
+  .d-toggle-text{flex:1;min-width:0}
+  .d-toggle-title{font-size:12.5px;font-weight:600}
+  .d-toggle-sub{font-size:11px;color:#777;margin-top:2px;line-height:1.45}
+  .d-label{font-size:10.5px;font-weight:600;color:#707070;letter-spacing:.02em;margin-bottom:5px}
+  .d-source-row{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .d-source-note{font-size:11px;color:#6b6b6b}
+  .code-box{
+    margin-bottom:10px;padding:7px 9px;
+    border:1px solid rgba(0,0,0,.04);border-radius:4px;
+    background:#f6f6f6;color:#333;
+    font-family:var(--mono);font-size:10.5px;line-height:1.55;
+    word-break:break-all;
+  }
+  .code-sub{margin-top:3px;color:#6f6f6f;font-family:var(--font);font-size:10.5px}
+  .d-facts{display:flex;gap:26px;margin-top:13px}
+  .d-fact-label{font-size:10.5px;color:#7a7a7a}
+  .d-fact-value{font-size:12px;color:#2b2b2b;margin-top:2px;font-weight:500}
+  .how-card{
+    padding:12px 13px;margin:2px 0 14px;
+    background:#f5f9fe;border:1px solid #dbe9f7;border-radius:8px;
+  }
+  .how-head{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#174a73}
+  .how-head svg{width:14px;height:14px;flex:none}
+  .how-desc{margin:7px 0 10px;font-size:11px;line-height:1.7;color:#3c5c78}
+  .steps{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+  .step{
+    display:inline-flex;align-items:center;gap:4px;
+    padding:3px 6px;border-radius:3px;
+    background:rgba(15,108,189,.08);color:#174a73;
+    font-size:10px;font-weight:500;white-space:nowrap;
+  }
+  .step b{
+    width:12px;height:12px;border-radius:50%;
+    display:inline-grid;place-items:center;
+    background:rgba(15,108,189,.13);font-size:8px;font-weight:700;
+  }
+  .step-arrow{color:#7d9ab5;font-size:10px}
+  .how-card.protected{background:#faf7f2;border-color:#eadfcd}
+  .how-card.protected .how-head{color:#6b5220}
+  .how-card.protected .how-desc{color:#6b5c42;margin-bottom:0}
+  .admin-note{
+    display:flex;align-items:flex-start;gap:7px;
+    padding:8px 10px;margin-bottom:14px;
+    background:#fdf8ed;border:1px solid #f0e5cd;border-radius:6px;
+    color:#6b5426;font-size:11px;line-height:1.6;
+  }
+  .admin-note svg{width:14px;height:14px;flex:none;margin-top:1px;color:var(--warn)}
+  .d-actions{display:flex;gap:8px;flex-wrap:wrap;padding-top:2px}
+  .d-footnote{display:flex;gap:6px;align-items:center;margin-top:12px;font-size:10.5px;color:#888;line-height:1.5}
+  .d-footnote svg{width:12px;height:12px;flex:none}
+
+  /* ---------- Restore center ---------- */
+  .backup-info{
+    display:flex;align-items:center;gap:12px;
+    padding:14px 16px;margin-top:18px;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  }
+  .backup-info-icon{
+    width:34px;height:34px;flex:none;
+    display:grid;place-items:center;border-radius:8px;
+    background:#eef7ef;color:var(--success);
+  }
+  .backup-info-icon svg{width:17px;height:17px}
+  .backup-info-title{font-size:12.5px;font-weight:600}
+  .backup-info-text{font-size:11.5px;color:#6f6f6f;margin-top:2px;line-height:1.55}
+  .code-inline{
+    font-family:var(--mono);font-size:10.5px;color:#4a4a4a;
+    background:#f4f4f4;padding:2px 5px;border-radius:3px;
+    word-break:break-all;
+  }
+  .section-title{display:flex;align-items:baseline;gap:8px;margin:22px 0 8px;font-size:13px;font-weight:600}
+  .section-title .count{font-size:11px;color:#777;font-weight:400;font-variant-numeric:tabular-nums}
+  .backup-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .backup-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)}
+  .backup-row:last-child{border-bottom:0}
+  .backup-row .app-ico{width:32px;height:32px;border-radius:7px;font-size:12.5px;filter:grayscale(.35);opacity:.85}
+  .backup-main{flex:1;min-width:0}
+  .backup-name{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600}
+  .backup-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px;font-size:11px;color:#777}
+  .backup-meta svg{width:11px;height:11px;color:#8a8a8a}
+  .backup-path{
+    margin-top:4px;font-family:var(--mono);font-size:10px;color:#8a8a8a;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+
+  /* ---------- Settings ---------- */
+  .settings-group-title{font-size:12.5px;font-weight:600;margin:22px 0 8px;color:#333}
+  .settings-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .settings-row{display:flex;align-items:center;gap:16px;padding:14px 16px;border-bottom:1px solid var(--border);min-height:62px}
+  .settings-row:last-child{border-bottom:0}
+  .settings-text{flex:1;min-width:0}
+  .settings-title{font-size:12.5px;font-weight:500;color:#242424}
+  .settings-desc{margin-top:3px;font-size:11px;color:#777;line-height:1.55}
+  .settings-path{
+    display:inline-block;margin-top:5px;padding:3px 6px;
+    border-radius:3px;background:#f5f5f5;
+    font-family:var(--mono);font-size:10px;color:#555;
+    max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .settings-select{
+    height:28px;padding:0 26px 0 9px;
+    border:1px solid rgba(0,0,0,.1);border-radius:4px;background:#fff;
+    font-size:11.5px;color:#333;appearance:none;-webkit-appearance:none;cursor:pointer;outline:none;
+  }
+  .settings-select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .settings-about{display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .version-text{font-size:11.5px;color:#777}
+
+  /* ---------- Toast ---------- */
+  .toast-wrap{position:fixed;right:24px;bottom:24px;z-index:80;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+  .toast{
+    width:382px;max-width:calc(100vw - 32px);
+    display:flex;align-items:flex-start;gap:10px;
+    padding:12px 11px 12px 14px;position:relative;
+    background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;
+    box-shadow:0 10px 30px rgba(0,0,0,.16);
+    pointer-events:auto;overflow:hidden;
+    animation:toast-in .22s cubic-bezier(.2,0,0,1);
+    transition:opacity .18s,transform .18s;
+  }
+  .toast::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+  .toast.success::before{background:var(--success)}
+  .toast.info::before{background:var(--accent)}
+  .toast.leaving{opacity:0;transform:translateY(6px)}
+  .toast-icon{width:19px;height:19px;flex:none;margin-top:1px;color:var(--success)}
+  .toast.info .toast-icon{color:var(--accent)}
+  .toast-body{flex:1;min-width:0}
+  .toast-title{font-size:12.5px;font-weight:600;line-height:1.45;color:#1b1b1b}
+  .toast-msg{margin-top:2px;font-size:11px;color:#6f6f6f;line-height:1.55}
+  .toast-action{
+    align-self:flex-start;margin-top:-2px;padding:4px 6px;
+    border:0;border-radius:3px;background:transparent;
+    color:var(--accent);font-size:11.5px;font-weight:600;white-space:nowrap;
+  }
+  .toast-action:hover{background:var(--accent-tint)}
+  .toast-close{
+    width:22px;height:22px;flex:none;margin-top:-2px;
+    display:grid;place-items:center;padding:0;
+    border:0;border-radius:3px;background:transparent;color:#777;
+  }
+  .toast-close:hover{background:rgba(0,0,0,.06)}
+  .toast-close svg{width:11px;height:11px}
+  @keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  /* ---------- Dialog ---------- */
+  .dialog-backdrop{
+    position:fixed;inset:0;z-index:90;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.28);
+    opacity:0;visibility:hidden;
+    transition:opacity .16s,visibility .16s;
+  }
+  .dialog-backdrop.open{opacity:1;visibility:visible}
+  .dialog{
+    width:432px;max-width:calc(100vw - 32px);
+    padding:22px 24px 20px;
+    background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;
+    box-shadow:0 24px 64px rgba(0,0,0,.28);
+    transform:scale(.97) translateY(4px);
+    transition:transform .18s cubic-bezier(.2,0,0,1);
+  }
+  .dialog-backdrop.open .dialog{transform:none}
+  .dialog-icon{
+    width:32px;height:32px;margin-bottom:12px;
+    display:grid;place-items:center;border-radius:50%;
+    background:#fdf4e5;color:var(--warn);
+  }
+  .dialog-icon svg{width:17px;height:17px}
+  .dialog h2{margin:0 0 8px;font-size:17px;font-weight:600}
+  .dialog p{margin:0 0 10px;font-size:12px;color:#555;line-height:1.7}
+  .dialog-note{
+    margin-bottom:20px;padding:9px 10px;
+    background:#f7f7f7;border-radius:6px;
+    font-size:11px;color:#6b6b6b;line-height:1.65;
+  }
+  .dialog-actions{display:flex;justify-content:flex-end;gap:8px}
+  .dialog-open .content{overflow:hidden}
+
+  /* ---------- Responsive ---------- */
+  @media (max-width:1180px){
+    .content{padding:24px 24px 40px}
+    .list-head,.row{grid-template-columns:minmax(260px,1fr) 120px 108px 108px}
+  }
+  @media (max-width:1040px){
+    .search{width:218px}
+    .list-head,.row{grid-template-columns:minmax(240px,1fr) 112px 110px}
+    .list-head .h-source,.row .cell-source{display:none}
+    .detail{width:380px}
+  }
+  @media (max-width:900px){
+    .sidebar{width:64px;padding:10px 8px 12px}
+    .nav-item{justify-content:center;padding:0}
+    .nav-label,.nav-count,.scan-meta,.side-divider,.sidebar-version{display:none}
+    .sidebar-bottom{padding:0}
+    .sidebar-bottom .nav-item{margin-top:6px}
+    .content{padding:22px 20px 36px}
+    .head-actions{gap:6px}
+    .search{width:190px}
+  }
+  @media (max-width:760px){
+    .list-head .h-impact,.row .cell-impact{display:none}
+    .list-head,.row{grid-template-columns:minmax(0,1fr) 100px}
+    .page-head{flex-direction:column;gap:12px}
+    .head-actions{width:100%}
+    .head-actions .search{flex:1;width:auto}
+    .subtitle{gap:4px 8px}
+    .detail{width:auto;left:12px;right:12px;top:56px;bottom:12px;max-width:none}
+    .toast-wrap{right:12px;bottom:12px;left:12px}
+    .toast{width:100%}
+    .banner-close{margin-top:-2px}
+  }
+  @media (max-width:520px){
+    h1{font-size:23px}
+    .content{padding:18px 14px 32px}
+    .segmented button{padding:0 8px}
+    .toolbar{gap:8px}
+    .toolbar-right{gap:2px}
+    .list-head,.row{padding:0 12px}
+    .cell-main{gap:10px}
+    .list-footnote{align-items:flex-start}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+  }
+</style>
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4.6 13.4h5.7L9.2 22l8.6-11.5h-5.6L13 2Z" fill="currentColor"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M4 17l3 3 3-3M17 20V4M14 7l3-3 3 3"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7A1.5 1.5 0 0 1 5 5.5h4l2 2h8A1.5 1.5 0 0 1 20.5 9v9.5A1.5 1.5 0 0 1 19 20H5a1.5 1.5 0 0 1-1.5-1.5V7Z"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="3.5"/><path d="m10.5 12.5 9-9M16.5 3.5 20 7M13.5 6.5 17 10"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="6" rx="1.5"/><rect x="3.5" y="13.5" width="17" height="6" rx="1.5"/><path d="M7 7.5h.01M7 16.5h.01M11 7.5h5.5M11 16.5h5.5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.8 5.8v5.4c0 4.3 3 8 7.2 9.8 4.2-1.8 7.2-5.5 7.2-9.8V5.8L12 3Z"/><path d="m9.2 11.8 2 2 3.8-3.8"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9"/><path d="M6.7 6.3a8 8 0 1 0 10.6 0"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 13 4 8l5-5"/><path d="M4 8h9.5a6.5 6.5 0 0 1 0 13H9"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.5"/><path d="M3.5 3.5v5h5"/><path d="M12 8v4l2.5 2"/></symbol>
+  <symbol id="i-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4 10.5 13.5"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-apps" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4.5"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.2 18.5a4.2 4.2 0 0 1-.5-8.4 5.6 5.6 0 0 1 10.9 1.2 3.6 3.6 0 0 1-.4 7.2H7.2Z"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5.5l10-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></symbol>
+</svg>
+
+<div class="app">
+  <header class="titlebar">
+    <div class="brand">
+      <div class="brand-icon"><svg aria-hidden="true"><use href="#i-bolt"/></svg></div>
+      <span>启动项管理器</span>
+      <span class="proto-badge">UI 原型</span>
+    </div>
+    <div class="win-controls" aria-hidden="true">
+      <span class="win-btn"><svg viewBox="0 0 10 10"><path d="M1 5h8"/></svg></span>
+      <span class="win-btn"><svg viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" rx=".5"/></svg></span>
+      <span class="win-btn win-close"><svg viewBox="0 0 10 10"><path d="M1 1l8 8M9 1 1 9"/></svg></span>
+    </div>
+  </header>
+
+  <div class="shell">
+    <nav class="sidebar" aria-label="主导航">
+      <div class="nav-section">
+        <button class="nav-item active" data-page="startup" aria-current="page" title="启动项">
+          <svg aria-hidden="true"><use href="#i-apps"/></svg>
+          <span class="nav-label">启动项</span>
+          <span class="nav-count" id="navCount">12</span>
+        </button>
+        <button class="nav-item" data-page="backup" title="恢复中心">
+          <svg aria-hidden="true"><use href="#i-history"/></svg>
+          <span class="nav-label">恢复中心</span>
+          <span class="nav-count" id="backupNavCount">4</span>
+        </button>
+      </div>
+      <div class="sidebar-bottom">
+        <div class="scan-meta">
+          <span class="scan-dot"></span>
+          <div class="scan-text">
+            <div class="scan-title">已检查 5 个启动位置</div>
+            <div class="scan-time" id="lastScan">今天 --:--</div>
+          </div>
+          <button class="scan-refresh" data-action="rescan" title="重新扫描" aria-label="重新扫描">
+            <svg aria-hidden="true"><use href="#i-refresh"/></svg>
+          </button>
+        </div>
+        <div class="side-divider"></div>
+        <button class="nav-item" data-page="settings" title="设置">
+          <svg aria-hidden="true"><use href="#i-sliders"/></svg>
+          <span class="nav-label">设置</span>
+        </button>
+        <div class="sidebar-version">v0.1.0 · 界面预览</div>
+      </div>
+    </nav>
+
+    <main class="content" id="content">
+      <!-- ============ Startup page ============ -->
+      <section class="page" id="page-startup">
+        <div class="page-head">
+          <div>
+            <h1>启动项</h1>
+            <p class="subtitle">
+              <span id="summaryText">共 12 个启动项 · 8 个已启用 · 4 个已禁用</span>
+              <span class="savings-chip" id="savingsChip" title="根据启动耗时估算，仅供参考">
+                <svg aria-hidden="true"><use href="#i-clock"/></svg>
+                预计节省 <strong id="savingsValue">7.6</strong> 秒
+              </span>
+            </p>
+          </div>
+          <div class="head-actions">
+            <div class="search" id="searchBox">
+              <svg aria-hidden="true"><use href="#i-search"/></svg>
+              <input id="searchInput" type="text" placeholder="搜索名称、发布者或路径" autocomplete="off" spellcheck="false" aria-label="搜索启动项">
+              <button class="search-clear" data-action="clear-search" aria-label="清除搜索">
+                <svg aria-hidden="true"><use href="#i-close"/></svg>
+              </button>
+            </div>
+            <button class="icon-btn" data-action="rescan" title="重新扫描启动项" aria-label="重新扫描启动项">
+              <svg aria-hidden="true"><use href="#i-refresh"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="proto-banner" id="protoBanner">
+          <svg aria-hidden="true"><use href="#i-info"/></svg>
+          <div><b>这是交互原型。</b>列表为演示数据，开关不会修改你的系统。正式版会直接管理注册表 Run 键、启动文件夹、计划任务与服务，并在修改前自动备份。</div>
+          <button class="banner-close" data-action="dismiss-banner" aria-label="关闭提示">
+            <svg aria-hidden="true"><use href="#i-close"/></svg>
+          </button>
+        </div>
+
+        <div class="toolbar">
+          <div class="segmented" role="tablist" aria-label="按状态筛选">
+            <button class="active" data-filter="all" role="tab" aria-selected="true">全部 <span class="seg-num" id="countAll">12</span></button>
+            <button data-filter="enabled" role="tab" aria-selected="false">已启用 <span class="seg-num" id="countEnabled">8</span></button>
+            <button data-filter="disabled" role="tab" aria-selected="false">已禁用 <span class="seg-num" id="countDisabled">4</span></button>
+          </div>
+          <div class="toolbar-right">
+            <div class="select-wrap">
+              <select class="sort-select" id="sortSelect" aria-label="排序方式">
+                <option value="impact">开机影响优先</option>
+                <option value="name">名称 A–Z</option>
+                <option value="source">按启动来源</option>
+              </select>
+              <svg aria-hidden="true"><use href="#i-chevron-down"/></svg>
+            </div>
+            <button class="btn ghost" id="bulkDisable" data-action="open-dialog">
+              <svg aria-hidden="true"><use href="#i-power"/></svg>
+              全部禁用…
+            </button>
+          </div>
+        </div>
+
+        <div class="list-card">
+          <div class="list-head">
+            <div>名称</div>
+            <div class="h-source">启动来源</div>
+            <div class="h-impact" title="根据启动耗时估算，仅供参考">
+              开机影响
+              <svg style="width:12px;height:12px;color:#8a8a8a" aria-hidden="true"><use href="#i-info"/></svg>
+            </div>
+            <div class="h-actions">自启动</div>
+          </div>
+          <div class="list-body" id="startupList"></div>
+        </div>
+        <div class="list-footnote">
+          <svg aria-hidden="true"><use href="#i-shield"/></svg>
+          禁用前会自动备份原始键值或快捷方式，可在恢复中心还原；系统保护项不会被修改。
+        </div>
+      </section>
+
+      <!-- ============ Backup page ============ -->
+      <section class="page hidden" id="page-backup">
+        <div class="page-head">
+          <div>
+            <h1>恢复中心</h1>
+            <p class="subtitle">每次禁用前的原始配置都会保存在这里，可随时写回系统。</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn" data-action="open-backup-folder">
+              <svg aria-hidden="true"><use href="#i-open"/></svg>
+              打开备份文件夹
+            </button>
+          </div>
+        </div>
+
+        <div class="backup-info">
+          <div class="backup-info-icon">
+            <svg aria-hidden="true"><use href="#i-shield"/></svg>
+          </div>
+          <div>
+            <div class="backup-info-title">自动备份已开启</div>
+            <div class="backup-info-text">禁用前会保存注册表键值、快捷方式或任务配置，默认保留 30 天。备份位置：<span class="code-inline">%LocalAppData%\StartupManager\Backup</span></div>
+          </div>
+        </div>
+
+        <div class="section-title">待恢复的项目 <span class="count" id="backupPageCount">4</span></div>
+        <div class="backup-list" id="backupList"></div>
+      </section>
+
+      <!-- ============ Settings page ============ -->
+      <section class="page hidden" id="page-settings">
+        <div class="page-head">
+          <div>
+            <h1>设置</h1>
+            <p class="subtitle">调整扫描范围、权限与安全备份策略。</p>
+          </div>
+        </div>
+
+        <div class="settings-group-title">常规</div>
+        <div class="settings-card">
+          <div class="settings-row">
+            <div class="settings-text">
+              <div class="settings-title">随 Windows 登录启动本工具</div>
+              <div class="settings-desc">在系统托盘常驻，便于接收启动项变化提示。</div>
+            </div>
+            <button class="switch" role="switch" aria-checked="false" data-setting-toggle><span class="knob"></span></button>
+          </div>
+          <div class="settings-row">
+            <div class="settings-text">
+              <div class="settings-title">关闭窗口时最小化到托盘</div>
+              <div class="settings-desc">不退出后台扫描，仅隐藏主窗口。</div>
+            </div>
+            <button class="switch on" role="switch" aria-checked="true" data-setting-toggle><span class="knob"></span></button>
+          </div>
+        </div>
+
+        <div class="settings-group-title">扫描与权限</div>
+        <div class="settings-card">
+          <div class="settings-row">
+            <div class="settings-text">
+              <div class="settings-title">扫描系统服务</div>
+              <div class="settings-desc">包含自动启动的 Windows 服务，需要管理员权限。</div>
+            </div>
+            <button class="switch on" role="switch" aria-checked="true" data-setting-toggle><span class="knob"></span></button>
+          </div>
+          <div class="settings-row">
+            <div class="settings-text">
+              <div class="settings-title">操作前请求管理员权限</div>
+              <div class="settings-desc">修改 HKLM 注册表或服务时，通过 UAC 确认后执行。</div>
+            </div>
+            <button class="switch on" role="switch" aria-checked="true" data-setting-toggle><span class="knob"></span></button>
+          </div>
+          <div class="settings-row">
+            <div class="settings-text">
+              <div class="settings-title">显示开机影响估算</div>
+              <div class="settings-desc">依据启动耗时与资源占用估算，仅供优化参考。</div>
+            </div>
+            <button class="switch on" role="switch" aria-checked="true" data-setting-toggle><span class="knob"></span></button>
+          </div>
+        </div>
+
+        <div class="settings-group-title">安全与备份</div>
+        <div class="settings-card">
+          <div class="settings-row">
+            <div class="settings-text">
+              <div class="settings-title">禁用前自动备份</div>
+              <div class="settings-desc">安全保护功能，始终开启，无法关闭。</div>
+            </div>
+            <button class="switch on" role="switch" aria-checked="true" disabled title="安全保护始终开启"><span class="knob"></span></button>
+          </div>
+          <div class="settings-row">
+            <div class="settings-text">
+              <div class="settings-title">备份保留时间</div>
+              <div class="settings-desc">超过保留期的备份会被自动清理。</div>
+            </div>
+            <div class="select-wrap">
+              <select class="settings-select" aria-label="备份保留时间">
+                <option>7 天</option>
+                <option selected>30 天</option>
+                <option>90 天</option>
+                <option>永久保留</option>
+              </select>
+              <svg aria-hidden="true" style="width:12px;height:12px"><use href="#i-chevron-down"/></svg>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-text">
+              <div class="settings-title">备份位置</div>
+              <div class="settings-path">C:\Users\Zy\AppData\Local\StartupManager\Backup</div>
+            </div>
+            <button class="btn small" data-action="open-backup-folder">
+              <svg aria-hidden="true"><use href="#i-open"/></svg>
+              打开
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-group-title">关于</div>
+        <div class="settings-card">
+          <div class="settings-row">
+            <div class="settings-text">
+              <div class="settings-title">启动项管理器</div>
+              <div class="version-text">版本 0.1.0 · UI 原型 · Fluent Design</div>
+            </div>
+            <button class="btn small" data-action="check-update">检查更新</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- Detail panel -->
+<aside class="detail" id="detailPanel" aria-hidden="true" aria-label="启动项详情">
+  <button class="panel-close" data-action="close-detail" aria-label="关闭详情">
+    <svg aria-hidden="true"><use href="#i-close"/></svg>
+  </button>
+  <div class="detail-scroll" id="detailContent"></div>
+</aside>
+
+<!-- Toast -->
+<div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
+
+<!-- Confirm dialog -->
+<div class="dialog-backdrop" id="dialogBackdrop" aria-hidden="true">
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="dialogTitle" aria-describedby="dialogDesc">
+    <div class="dialog-icon"><svg aria-hidden="true"><use href="#i-alert"/></svg></div>
+    <h2 id="dialogTitle">禁用所有可管理的启动项？</h2>
+    <p id="dialogDesc"></p>
+    <div class="dialog-note" id="dialogNote"></div>
+    <div class="dialog-actions">
+      <button class="btn" data-action="close-dialog" id="dialogCancel">取消</button>
+      <button class="btn danger" data-action="confirm-disable" id="dialogConfirm">禁用</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ---------- Data ---------- */
+  const ITEMS = [
+    {
+      id:'onedrive', name:'Microsoft OneDrive', publisher:'Microsoft Corporation',
+      source:'registry', impact:'medium', seconds:1.2, enabled:true,
+      location:'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
+      sub:'值名称：OneDrive',
+      command:'"C:\\Users\\Zy\\AppData\\Local\\Microsoft\\OneDrive\\OneDrive.exe" /background',
+      modified:'2026/11/03 09:12',
+      icon:{glyph:'cloud', tile:'linear-gradient(135deg,#2f8fe8,#0b5cab)'}
+    },
+    {
+      id:'wechat', name:'微信', publisher:'腾讯科技（深圳）有限公司',
+      source:'registry', impact:'medium', seconds:1.1, enabled:true,
+      location:'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
+      sub:'值名称：WeChat',
+      command:'"C:\\Program Files\\Tencent\\WeChat\\WeChat.exe"',
+      modified:'2026/10/28 21:40',
+      icon:{text:'微', tile:'linear-gradient(135deg,#2cc06a,#0c8a45)'}
+    },
+    {
+      id:'sogou', name:'搜狗输入法', publisher:'北京搜狗科技发展有限公司',
+      source:'registry', impact:'high', seconds:2.6, enabled:true,
+      location:'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
+      sub:'值名称：SogouCloud',
+      command:'"C:\\Program Files (x86)\\SogouInput\\Components\\SogouComMgr.exe"',
+      modified:'2026/09/18 10:05',
+      icon:{text:'搜', tile:'linear-gradient(135deg,#f08c00,#c26a00)'}
+    },
+    {
+      id:'steam', name:'Steam 客户端', publisher:'Valve Corporation',
+      source:'registry', impact:'high', seconds:2.4, enabled:false,
+      location:'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
+      sub:'值名称：Steam',
+      command:'"C:\\Program Files (x86)\\Steam\\steam.exe" -silent',
+      modified:'2026/11/08 21:14',
+      icon:{text:'S', tile:'linear-gradient(135deg,#2a475e,#171d25)'}
+    },
+    {
+      id:'thunder', name:'迅雷', publisher:'深圳市迅雷网络技术有限公司',
+      source:'registry', impact:'high', seconds:1.8, enabled:false,
+      location:'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
+      sub:'值名称：Thunder',
+      command:'"C:\\Program Files (x86)\\Thunder Network\\Thunder\\Program\\Thunder.exe" -StartType:AutoRun',
+      modified:'2026/10/02 19:36',
+      icon:{text:'迅', tile:'linear-gradient(135deg,#2f8ee5,#0b63b6)'}
+    },
+    {
+      id:'dingtalk', name:'钉钉', publisher:'钉钉（中国）信息技术有限公司',
+      source:'folder', impact:'medium', seconds:1.3, enabled:false,
+      location:'C:\\Users\\Zy\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\DingTalk.lnk',
+      sub:'快捷方式 · 当前用户启动文件夹',
+      command:'"C:\\Program Files (x86)\\DingDing\\DingtalkLauncher.exe" --auto-start',
+      modified:'2026/11/07 22:05',
+      icon:{text:'钉', tile:'linear-gradient(135deg,#3a9df0,#1469d0)'}
+    },
+    {
+      id:'spotify', name:'Spotify', publisher:'Spotify AB',
+      source:'folder', impact:'medium', seconds:1.2, enabled:true,
+      location:'C:\\Users\\Zy\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\Spotify.lnk',
+      sub:'快捷方式 · 当前用户启动文件夹',
+      command:'"C:\\Users\\Zy\\AppData\\Roaming\\Spotify\\Spotify.exe" --autostart --minimized',
+      modified:'2026/10/30 12:18',
+      icon:{glyph:'music', tile:'linear-gradient(135deg,#1db954,#0e7a34)'}
+    },
+    {
+      id:'adobe', name:'Adobe Creative Cloud', publisher:'Adobe Inc.',
+      source:'task', impact:'high', seconds:2.1, enabled:false,
+      location:'任务计划程序库 \\Adobe Creative Cloud',
+      sub:'触发器：登录时 · 用户：Zy',
+      command:'"C:\\Program Files\\Adobe\\Adobe Creative Cloud\\ACC\\Creative Cloud.exe" --background',
+      modified:'2026/10/24 17:50',
+      icon:{text:'A', tile:'linear-gradient(135deg,#e64545,#a6171c)'},
+      requiresAdmin:false
+    },
+    {
+      id:'nvidia-gfe', name:'NVIDIA GeForce Experience', publisher:'NVIDIA Corporation',
+      source:'task', impact:'medium', seconds:1.4, enabled:true,
+      location:'任务计划程序库 \\NVIDIA GeForce Experience',
+      sub:'触发器：当前用户登录时',
+      command:'"C:\\Program Files\\NVIDIA Corporation\\NVIDIA GeForce Experience\\NVIDIA GeForce Experience.exe" -tray',
+      modified:'2026/10/15 11:03',
+      icon:{text:'N', tile:'linear-gradient(135deg,#76b900,#4a7a00)'}
+    },
+    {
+      id:'realtek', name:'Realtek 高清晰音频管理器', publisher:'Realtek Semiconductor Corp.',
+      source:'service', impact:'low', seconds:0.3, enabled:true,
+      location:'服务：RtkAudioUniversalService',
+      sub:'启动类型：自动 · 受系统保护',
+      command:'C:\\Windows\\System32\\DriverStore\\FileRepository\\realtekservice.inf_amd64\\RtkAudUService64.exe',
+      modified:'2026/09/30 14:44',
+      protected:true, requiresAdmin:true,
+      protectedReason:'音频驱动的核心服务。禁用可能导致扬声器、耳机没有声音，因此已锁定。',
+      icon:{text:'R', tile:'linear-gradient(135deg,#3d7dca,#24538f)'}
+    },
+    {
+      id:'nvidia-container', name:'NVIDIA Display Container LS', publisher:'NVIDIA Corporation',
+      source:'service', impact:'low', seconds:0.2, enabled:true,
+      location:'服务：NVDisplay.ContainerLocalSystem',
+      sub:'启动类型：自动 · 受系统保护',
+      command:'C:\\Program Files\\NVIDIA Corporation\\Display.NvContainer\\NVDisplay.Container.exe',
+      modified:'2026/09/30 14:42',
+      protected:true, requiresAdmin:true,
+      protectedReason:'显示驱动的核心容器服务。禁用可能导致分辨率切换、多屏输出等显示功能异常，因此已锁定。',
+      icon:{text:'N', tile:'linear-gradient(135deg,#76b900,#4a7a00)'}
+    },
+    {
+      id:'teamviewer', name:'TeamViewer 服务', publisher:'TeamViewer Germany GmbH',
+      source:'service', impact:'low', seconds:0.5, enabled:true,
+      location:'服务：TeamViewer',
+      sub:'启动类型：自动 · 服务名称：TeamViewer',
+      command:'"C:\\Program Files\\TeamViewer\\TeamViewer_Service.exe"',
+      modified:'2026/10/09 08:31',
+      requiresAdmin:true,
+      icon:{text:'T', tile:'linear-gradient(135deg,#2b9be0,#1166a8)'}
+    }
+  ];
+
+  const SOURCE_META = {
+    registry:{label:'注册表', icon:'key', detail:'当前用户 · HKCU'},
+    folder:{label:'启动文件夹', icon:'folder', detail:'当前用户 · Startup'},
+    task:{label:'计划任务', icon:'clock', detail:'Windows 任务计划程序'},
+    service:{label:'服务', icon:'server', detail:'Windows 服务管理器'}
+  };
+  const IMPACT_META = {
+    high:{label:'高', level:3},
+    medium:{label:'中', level:2},
+    low:{label:'低', level:1}
+  };
+  const HOW = {
+    registry:{
+      desc:'关闭开关时，会先备份该 Run 键值，再从注册表中删除启动项。系统里的真实设置会同步改变，不是只改界面状态。',
+      steps:['备份 Run 键值','移出注册表','记录可恢复']
+    },
+    folder:{
+      desc:'关闭开关时，快捷方式会被移动到应用备份目录，并从启动文件夹移除；原始 .lnk 文件不会被删除。',
+      steps:['移动快捷方式','移出启动文件夹','记录可恢复']
+    },
+    task:{
+      desc:'关闭开关时，会调用 Windows 任务计划程序把任务状态改为「已禁用」，在系统计划任务中真实生效。',
+      steps:['备份任务配置','禁用计划任务','记录可恢复']
+    },
+    service:{
+      desc:'关闭开关会通过系统服务管理器修改启动类型（自动 → 手动），需要管理员权限；系统关键服务默认受保护。',
+      steps:['请求管理员权限','修改启动类型','记录可恢复']
+    }
+  };
+  const LOCATE_LABEL = {
+    registry:'打开文件所在位置',
+    folder:'打开文件所在位置',
+    task:'打开任务计划程序',
+    service:'打开服务管理器'
+  };
+  const BACKUP_DIR = 'C:\\Users\\Zy\\AppData\\Local\\StartupManager\\Backup';
+
+  const INITIAL_BACKUP_AGE = {
+    steam: 2.5 * 3600 * 1000,
+    dingtalk: 27 * 3600 * 1000,
+    adobe: 53 * 3600 * 1000,
+    thunder: 78 * 3600 * 1000
+  };
+
+  const state = {
+    filter:'all',
+    query:'',
+    sort:'impact',
+    page:'startup',
+    selectedId:null,
+    lastScan:new Date(Date.now() - 4 * 60 * 1000)
+  };
+  let backups = new Map();
+  let rescanning = false;
+  let toastTimer = null;
+  let lastFocused = null;
+
+  ITEMS.filter(function(item){ return !item.enabled; }).forEach(function(item){
+    backups.set(item.id, new Date(Date.now() - (INITIAL_BACKUP_AGE[item.id] || 3 * 3600 * 1000)));
+  });
+
+  /* ---------- Helpers ---------- */
+  function $(sel, root){ return (root || document).querySelector(sel); }
+  function $$(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function esc(value){
+    return String(value).replace(/[&<>"']/g, function(ch){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch];
+    });
+  }
+  function icon(name, cls){
+    return '<svg class="' + (cls || '') + '" aria-hidden="true"><use href="#i-' + name + '"/></svg>';
+  }
+  function getItem(id){
+    return ITEMS.find(function(item){ return item.id === id; }) || null;
+  }
+  function pad(value){ return String(value).padStart(2, '0'); }
+  function fmtTime(date){ return pad(date.getHours()) + ':' + pad(date.getMinutes()); }
+  function fmtDateTime(date){
+    return date.getFullYear() + '/' + pad(date.getMonth() + 1) + '/' + pad(date.getDate()) + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+  }
+  function exeName(command){
+    var match = command.match(/([^\\\/"]+\.exe)/i);
+    return match ? match[1] : command;
+  }
+  function appIcon(item, size){
+    var cls = 'app-ico' + (size === 'lg' ? ' lg' : '');
+    var inner = item.icon.glyph ? icon(item.icon.glyph) : esc(item.icon.text);
+    return '<div class="' + cls + '" style="--tile:' + item.icon.tile + '">' + inner + '</div>';
+  }
+  function sourceChip(source){
+    var meta = SOURCE_META[source];
+    return '<span class="source-chip ' + source + '">' + icon(meta.icon) + meta.label + '</span>';
+  }
+  function switchHtml(item){
+    var disabled = item.protected ? ' disabled title="系统保护项，无法关闭"' : '';
+    var toggleAttr = item.protected ? '' : ' data-toggle="' + item.id + '"';
+    return '<button class="switch ' + (item.enabled ? 'on' : '') + '" role="switch" aria-checked="' + item.enabled + '" aria-label="' +
+      (item.enabled ? '关闭' : '开启') + ' ' + esc(item.name) + ' 的自启动"' + toggleAttr + disabled + '>' +
+      '<span class="knob"></span></button>';
+  }
+  function impactHtml(item){
+    var meta = IMPACT_META[item.impact];
+    var bars = [1,2,3].map(function(n){
+      return '<i class="' + (n <= meta.level ? 'on' : '') + '"></i>';
+    }).join('');
+    return '<div class="impact ' + item.impact + '" title="预计增加开机时间约 ' + item.seconds.toFixed(1) + ' 秒（估算）">' +
+      '<span class="meter">' + bars + '</span><span class="impact-label">' + meta.label + '</span></div>';
+  }
+
+  /* ---------- Chrome / counts ---------- */
+  function renderChrome(){
+    var enabled = ITEMS.filter(function(item){ return item.enabled; }).length;
+    var disabled = ITEMS.length - enabled;
+    var seconds = ITEMS.filter(function(item){ return !item.enabled && !item.protected; })
+      .reduce(function(sum, item){ return sum + item.seconds; }, 0);
+    var enabledNonProtected = ITEMS.filter(function(item){ return item.enabled && !item.protected; }).length;
+
+    $('#summaryText').textContent = '共 ' + ITEMS.length + ' 个启动项 · ' + enabled + ' 个已启用 · ' + disabled + ' 个已禁用';
+    $('#savingsChip').hidden = disabled === 0 || seconds === 0;
+    $('#savingsValue').textContent = seconds.toFixed(1);
+    $('#countAll').textContent = ITEMS.length;
+    $('#countEnabled').textContent = enabled;
+    $('#countDisabled').textContent = disabled;
+    $('#navCount').textContent = ITEMS.length;
+    $('#backupNavCount').textContent = backups.size;
+    $('#bulkDisable').disabled = enabledNonProtected === 0;
+    renderScanMeta();
+  }
+  function renderScanMeta(){
+    $('#lastScan').textContent = '上次扫描 · 今天 ' + fmtTime(state.lastScan);
+  }
+  function updateFilterUi(){
+    $$('.segmented button').forEach(function(btn){
+      var active = btn.dataset.filter === state.filter;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', String(active));
+    });
+  }
+  function updateSearchUi(){
+    $('#searchBox').classList.toggle('has-text', $('#searchInput').value.length > 0);
+  }
+
+  /* ---------- List ---------- */
+  function compareItems(a, b){
+    if(state.sort === 'name'){
+      return a.name.localeCompare(b.name, 'zh-Hans-CN');
+    }
+    if(state.sort === 'source'){
+      var order = {registry:0, folder:1, task:2, service:3};
+      return (order[a.source] - order[b.source]) || a.name.localeCompare(b.name, 'zh-Hans-CN');
+    }
+    var rank = {high:0, medium:1, low:2};
+    return (rank[a.impact] - rank[b.impact]) ||
+      a.name.localeCompare(b.name, 'zh-Hans-CN');
+  }
+
+  function rowHtml(item){
+    var selected = item.id === state.selectedId;
+    return '<div class="row ' + (item.enabled ? '' : 'is-disabled') + (selected ? ' is-selected' : '') + '"' +
+      ' data-id="' + item.id + '" tabindex="0" role="button" aria-label="查看 ' + esc(item.name) + ' 的详情">' +
+      '<div class="cell-main">' + appIcon(item) +
+        '<div class="cell-main-text">' +
+          '<div class="name-row"><span class="app-name">' + esc(item.name) + '</span>' +
+            (item.protected ? '<span class="lock-chip">' + icon('lock') + '受保护</span>' : '') +
+          '</div>' +
+          '<div class="app-meta">' + esc(item.publisher) + ' · ' + esc(exeName(item.command)) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="cell-source">' + sourceChip(item.source) + '</div>' +
+      '<div class="cell-impact">' + impactHtml(item) + '</div>' +
+      '<div class="cell-actions">' + switchHtml(item) + icon('chevron-right', 'chev') + '</div>' +
+    '</div>';
+  }
+
+  function emptyHtml(){
+    var query = state.query.trim();
+    var title = '没有匹配的启动项';
+    var desc = '换个关键词试试，或清除当前的筛选条件。';
+    if(query){
+      title = '未找到「' + esc(query) + '」';
+      desc = '试试应用名称、发布者或可执行文件名。';
+    } else if(state.filter === 'enabled'){
+      title = '没有已启用的启动项';
+      desc = '当前所有启动项都已关闭，系统会以最精简的状态启动。';
+    } else if(state.filter === 'disabled'){
+      title = '没有已禁用的启动项';
+      desc = '被关闭的启动项会出现在这里，并可随时恢复到系统。';
+    }
+    return '<div class="empty">' +
+      '<div class="empty-icon">' + icon('search') + '</div>' +
+      '<div class="empty-title">' + title + '</div>' +
+      '<div class="empty-desc">' + desc + '</div>' +
+      '<button class="btn" data-action="reset-filters">' + icon('refresh') + '清除筛选</button>' +
+    '</div>';
+  }
+
+  function renderList(){
+    var query = state.query.trim().toLowerCase();
+    var visible = ITEMS.filter(function(item){
+      if(state.filter === 'enabled' && !item.enabled) return false;
+      if(state.filter === 'disabled' && item.enabled) return false;
+      if(!query) return true;
+      var haystack = [item.name, item.publisher, item.command, item.location, SOURCE_META[item.source].label].join(' ').toLowerCase();
+      return haystack.indexOf(query) !== -1;
+    }).sort(compareItems);
+
+    $('#startupList').innerHTML = visible.length ? visible.map(rowHtml).join('') : emptyHtml();
+  }
+
+  /* ---------- Detail ---------- */
+  function howCard(item){
+    if(item.protected){
+      return '<div class="how-card protected">' +
+        '<div class="how-head">' + icon('lock') + '系统保护项</div>' +
+        '<p class="how-desc">' + esc(item.protectedReason || '该项目由 Windows 或硬件驱动管理，暂不支持关闭。') + '</p>' +
+      '</div>';
+    }
+    var how = HOW[item.source];
+    var steps = how.steps.map(function(step, index){
+      return '<span class="step"><b>' + (index + 1) + '</b>' + esc(step) + '</span>' +
+        (index < how.steps.length - 1 ? '<span class="step-arrow">›</span>' : '');
+    }).join('');
+    return '<div class="how-card">' +
+      '<div class="how-head">' + icon('shield') + '真实生效方式</div>' +
+      '<p class="how-desc">' + esc(how.desc) + '</p>' +
+      '<div class="steps">' + steps + '</div>' +
+    '</div>';
+  }
+
+  function renderDetail(){
+    var item = getItem(state.selectedId);
+    if(!item) return;
+    var src = SOURCE_META[item.source];
+    var impact = IMPACT_META[item.impact];
+    var locateLabel = LOCATE_LABEL[item.source];
+    var adminNote = item.requiresAdmin && !item.protected
+      ? '<div class="admin-note">' + icon('alert') + '<span>修改系统服务需要管理员权限，正式版会通过 UAC 确认后执行；当前原型不会提权。</span></div>'
+      : '';
+    var footnote = item.protected
+      ? icon('lock') + '<span>系统保护项不可修改，仅展示启动配置。</span>'
+      : icon('shield') + '<span>修改前自动备份，可在恢复中心一键还原。</span>';
+
+    $('#detailContent').innerHTML =
+      '<div class="d-head">' + appIcon(item, 'lg') +
+        '<div>' +
+          '<h2 class="d-title">' + esc(item.name) + '</h2>' +
+          '<div class="d-sub ' + (item.enabled ? '' : 'off') + '"><span class="status-dot"></span>' +
+            (item.enabled ? '已启用' : '已禁用') + ' · ' + esc(item.publisher) +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="d-toggle">' +
+        '<div class="d-toggle-text">' +
+          '<div class="d-toggle-title">开机自动启动</div>' +
+          '<div class="d-toggle-sub">' + (item.protected ? '此项目受系统保护，无法关闭' : (item.enabled ? '登录 Windows 时自动运行' : '已禁用，不会随 Windows 启动')) + '</div>' +
+        '</div>' + switchHtml(item) +
+      '</div>' +
+      '<div class="d-label">启动来源</div>' +
+      '<div class="d-source-row">' + sourceChip(item.source) + '<span class="d-source-note">' + esc(src.detail) + '</span></div>' +
+      '<div class="d-label">系统位置</div>' +
+      '<div class="code-box">' + esc(item.location) + (item.sub ? '<div class="code-sub">' + esc(item.sub) + '</div>' : '') + '</div>' +
+      '<div class="d-label">启动命令</div>' +
+      '<div class="code-box">' + esc(item.command) + '</div>' +
+      '<div class="d-facts">' +
+        '<div><div class="d-fact-label">开机影响</div><div class="d-fact-value">' + impact.label + ' · 约 ' + item.seconds.toFixed(1) + ' 秒</div></div>' +
+        '<div><div class="d-fact-label">上次修改</div><div class="d-fact-value">' + esc(item.modified) + '</div></div>' +
+      '</div>' +
+      '<div style="height:16px"></div>' +
+      howCard(item) + adminNote +
+      '<div class="d-actions">' +
+        '<button class="btn" data-action="locate">' + icon('open') + locateLabel + '</button>' +
+        ((!item.enabled && !item.protected) ? '<button class="btn primary" data-action="restore-detail">' + icon('power') + '恢复启动</button>' : '') +
+      '</div>' +
+      '<div class="d-footnote">' + footnote + '</div>';
+  }
+
+  function openDetail(id){
+    if(!getItem(id)) return;
+    state.selectedId = id;
+    renderDetail();
+    $('#detailPanel').classList.add('open');
+    $('#detailPanel').setAttribute('aria-hidden', 'false');
+    $('#detailContent').scrollTop = 0;
+    renderList();
+  }
+  function closeDetail(){
+    if(state.selectedId === null && !$('#detailPanel').classList.contains('open')) return;
+    state.selectedId = null;
+    $('#detailPanel').classList.remove('open');
+    $('#detailPanel').setAttribute('aria-hidden', 'true');
+    if(state.page === 'startup') renderList();
+  }
+
+  /* ---------- State changes ---------- */
+  function applyEnabled(id, enabled){
+    var item = getItem(id);
+    if(!item || item.protected || item.enabled === enabled) return false;
+    item.enabled = enabled;
+    item.modified = fmtDateTime(new Date());
+    if(enabled){
+      backups.delete(id);
+    } else {
+      backups.set(id, new Date());
+    }
+    return true;
+  }
+
+  function refreshAfterChange(){
+    renderChrome();
+    renderList();
+    if(state.page === 'backup') renderBackupPage();
+    if(state.selectedId){
+      renderDetail();
+      $('#detailPanel').classList.add('open');
+      $('#detailPanel').setAttribute('aria-hidden', 'false');
+    }
+  }
+
+  function handleToggle(id){
+    var item = getItem(id);
+    if(!item || item.protected) return;
+    var wasEnabled = item.enabled;
+    if(!applyEnabled(id, !wasEnabled)) return;
+    refreshAfterChange();
+
+    var toastTitle = wasEnabled ? '已关闭「' + item.name + '」的自启动' : '已恢复「' + item.name + '」的自启动';
+    var toastMsg = wasEnabled ? '原始配置已备份至恢复中心，可随时写回系统。' : '启动配置已写回原位置，下次登录将自动运行。';
+    showToast({
+      type:'success', title:toastTitle, msg:toastMsg, actionLabel:'撤销',
+      onAction:function(){
+        applyEnabled(id, wasEnabled);
+        refreshAfterChange();
+        showToast({
+          type:'info',
+          title:'已撤销刚才的修改',
+          msg:'「' + item.name + '」已' + (wasEnabled ? '重新启用' : '关闭') + '。'
+        });
+      }
+    });
+  }
+
+  function restoreItem(id){
+    var item = getItem(id);
+    if(!item || item.protected || item.enabled) return;
+    applyEnabled(id, true);
+    refreshAfterChange();
+    showToast({
+      type:'success',
+      title:'已恢复「' + item.name + '」',
+      msg:'原始启动配置已写回系统，下次登录时将自动启动。'
+    });
+  }
+
+  function disableAll(){
+    var targets = ITEMS.filter(function(item){ return item.enabled && !item.protected; });
+    if(!targets.length) return;
+    targets.forEach(function(item){ applyEnabled(item.id, false); });
+    refreshAfterChange();
+    showToast({
+      type:'success',
+      title:'已禁用 ' + targets.length + ' 个启动项',
+      msg:'系统保护项已跳过，全部修改均已备份，可随时恢复。',
+      actionLabel:'全部撤销',
+      onAction:function(){
+        targets.forEach(function(item){ applyEnabled(item.id, true); });
+        refreshAfterChange();
+        showToast({type:'info', title:'已撤销全部禁用', msg:'这些启动项已重新加入开机启动。'});
+      }
+    });
+  }
+
+  function resetFilters(){
+    state.filter = 'all';
+    state.query = '';
+    $('#searchInput').value = '';
+    updateSearchUi();
+    updateFilterUi();
+    renderList();
+  }
+
+  /* ---------- Restore center ---------- */
+  function renderBackupPage(){
+    var records = Array.from(backups.entries())
+      .map(function(entry){ return {item:getItem(entry[0]), date:entry[1]}; })
+      .filter(function(record){ return !!record.item; })
+      .sort(function(a, b){ return b.date - a.date; });
+
+    $('#backupPageCount').textContent = records.length;
+    if(!records.length){
+      $('#backupList').innerHTML = '<div class="empty">' +
+        '<div class="empty-icon">' + icon('shield') + '</div>' +
+        '<div class="empty-title">没有待恢复的启动项</div>' +
+        '<div class="empty-desc">当你关闭某个启动项时，原始配置会自动备份到这里，随时可以恢复。</div>' +
+      '</div>';
+      return;
+    }
+
+    $('#backupList').innerHTML = records.map(function(record){
+      var item = record.item;
+      return '<div class="backup-row">' + appIcon(item) +
+        '<div class="backup-main">' +
+          '<div class="backup-name">' + esc(item.name) + '</div>' +
+          '<div class="backup-meta">' + icon('history') + '备份于 ' + esc(fmtDateTime(record.date)) +
+            ' · ' + SOURCE_META[item.source].label + ' · 已禁用</div>' +
+          '<div class="backup-path">' + esc(item.location) + '</div>' +
+        '</div>' +
+        '<button class="btn small" data-action="restore-backup" data-id="' + item.id + '">' + icon('undo') + '恢复</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  /* ---------- Toast ---------- */
+  function showToast(options){
+    options = options || {};
+    var type = options.type || 'success';
+    var iconName = type === 'success' ? 'check' : (type === 'warning' ? 'alert' : 'info');
+    var wrap = $('#toastWrap');
+    clearTimeout(toastTimer);
+    wrap.innerHTML = '<div class="toast ' + type + '" role="status">' +
+      '<svg class="toast-icon" aria-hidden="true"><use href="#i-' + iconName + '"/></svg>' +
+      '<div class="toast-body">' +
+        '<div class="toast-title">' + esc(options.title || '') + '</div>' +
+        (options.msg ? '<div class="toast-msg">' + esc(options.msg) + '</div>' : '') +
+      '</div>' +
+      (options.actionLabel ? '<button class="toast-action">' + esc(options.actionLabel) + '</button>' : '') +
+      '<button class="toast-close" aria-label="关闭通知">' + icon('close') + '</button>' +
+    '</div>';
+
+    var toast = wrap.firstElementChild;
+    var remove = function(){
+      clearTimeout(toastTimer);
+      if(!toast.isConnected) return;
+      toast.classList.add('leaving');
+      setTimeout(function(){ if(toast.isConnected) toast.remove(); }, 180);
+    };
+    var action = $('.toast-action', toast);
+    if(action){
+      action.addEventListener('click', function(){
+        remove();
+        if(typeof options.onAction === 'function') options.onAction();
+      });
+    }
+    var close = $('.toast-close', toast);
+    if(close) close.addEventListener('click', remove);
+    toastTimer = setTimeout(remove, options.actionLabel ? 7000 : 4500);
+  }
+
+  /* ---------- Dialog ---------- */
+  function openDisableDialog(){
+    var targets = ITEMS.filter(function(item){ return item.enabled && !item.protected; });
+    if(!targets.length) return;
+    var high = targets.filter(function(item){ return item.impact === 'high'; }).length;
+    var protectedCount = ITEMS.filter(function(item){ return item.protected; }).length;
+
+    $('#dialogDesc').textContent = '将关闭 ' + targets.length + ' 个启动项的开机自启' + (high ? '，其中 ' + high + ' 个为高影响项。' : '。');
+    $('#dialogNote').textContent = (protectedCount ? '系统保护项（' + protectedCount + ' 个）会自动跳过。' : '') +
+      '所有原始配置会先备份到恢复中心，可随时还原。';
+    $('#dialogConfirm').textContent = '禁用 ' + targets.length + ' 项';
+    $('#dialogBackdrop').classList.add('open');
+    $('#dialogBackdrop').setAttribute('aria-hidden', 'false');
+    document.body.classList.add('dialog-open');
+    lastFocused = document.activeElement;
+    setTimeout(function(){ $('#dialogCancel').focus(); }, 30);
+  }
+  function closeDialog(){
+    if(!$('#dialogBackdrop').classList.contains('open')) return;
+    $('#dialogBackdrop').classList.remove('open');
+    $('#dialogBackdrop').setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('dialog-open');
+    if(lastFocused && lastFocused.isConnected) lastFocused.focus();
+    lastFocused = null;
+  }
+
+  /* ---------- Scan ---------- */
+  function startRescan(){
+    if(rescanning) return;
+    rescanning = true;
+    $$('[data-action="rescan"]').forEach(function(btn){
+      btn.classList.add('spinning');
+      btn.disabled = true;
+    });
+    setTimeout(function(){
+      state.lastScan = new Date();
+      renderScanMeta();
+      $$('[data-action="rescan"]').forEach(function(btn){
+        btn.classList.remove('spinning');
+        btn.disabled = false;
+      });
+      rescanning = false;
+      showToast({
+        type:'success',
+        title:'扫描完成',
+        msg:'已检查 5 个启动位置，未发现新的启动项。'
+      });
+    }, 900);
+  }
+
+  /* ---------- Page switching ---------- */
+  function switchPage(page){
+    if(page === state.page) return;
+    closeDetail();
+    state.page = page;
+    $$('.nav-item[data-page]').forEach(function(btn){
+      var active = btn.dataset.page === page;
+      btn.classList.toggle('active', active);
+      if(active){ btn.setAttribute('aria-current', 'page'); } else { btn.removeAttribute('aria-current'); }
+    });
+    $$('.page').forEach(function(section){
+      section.classList.toggle('hidden', section.id !== 'page-' + page);
+    });
+    $('#content').scrollTop = 0;
+    if(page === 'startup') renderList();
+    if(page === 'backup') renderBackupPage();
+  }
+
+  /* ---------- Actions ---------- */
+  function handleAction(action, element){
+    switch(action){
+      case 'rescan':
+        startRescan();
+        break;
+      case 'dismiss-banner':
+        $('#protoBanner').classList.add('hidden');
+        break;
+      case 'clear-search':
+        state.query = '';
+        $('#searchInput').value = '';
+        updateSearchUi();
+        renderList();
+        $('#searchInput').focus();
+        break;
+      case 'reset-filters':
+        resetFilters();
+        break;
+      case 'close-detail':
+        closeDetail();
+        break;
+      case 'locate':
+        var locateItem = state.selectedId ? getItem(state.selectedId) : null;
+        var locateTarget = locateItem && locateItem.source === 'task'
+          ? '任务计划程序'
+          : (locateItem && locateItem.source === 'service' ? '服务管理器' : '资源管理器');
+        showToast({
+          type:'info',
+          title:'已在原型中模拟打开',
+          msg:'正式版会打开' + locateTarget + '并定位到该项目；当前原型不会访问系统。'
+        });
+        break;
+      case 'restore-detail':
+        if(state.selectedId) restoreItem(state.selectedId);
+        break;
+      case 'restore-backup':
+        restoreItem(element.dataset.id);
+        break;
+      case 'open-backup-folder':
+        showToast({
+          type:'info',
+          title:'备份文件夹',
+          msg:'正式版会打开 ' + BACKUP_DIR + '；当前原型不会访问磁盘。'
+        });
+        break;
+      case 'open-dialog':
+        openDisableDialog();
+        break;
+      case 'close-dialog':
+        closeDialog();
+        break;
+      case 'confirm-disable':
+        closeDialog();
+        disableAll();
+        break;
+      case 'check-update':
+        showToast({type:'info', title:'已是最新版本', msg:'当前版本 0.1.0 · UI 原型，正式版将加入自动更新。'});
+        break;
+    }
+  }
+
+  /* ---------- Events ---------- */
+  document.addEventListener('click', function(event){
+    var navBtn = event.target.closest('.nav-item[data-page]');
+    if(navBtn){
+      switchPage(navBtn.dataset.page);
+      return;
+    }
+
+    var filterBtn = event.target.closest('.segmented button[data-filter]');
+    if(filterBtn){
+      state.filter = filterBtn.dataset.filter;
+      updateFilterUi();
+      renderList();
+      return;
+    }
+
+    var settingSwitch = event.target.closest('.switch[data-setting-toggle]');
+    if(settingSwitch){
+      if(settingSwitch.disabled) return;
+      var next = !settingSwitch.classList.contains('on');
+      settingSwitch.classList.toggle('on', next);
+      settingSwitch.setAttribute('aria-checked', String(next));
+      return;
+    }
+
+    var switchBtn = event.target.closest('.switch[data-toggle]');
+    if(switchBtn){
+      if(switchBtn.disabled) return;
+      handleToggle(switchBtn.dataset.toggle);
+      return;
+    }
+
+    var actionEl = event.target.closest('[data-action]');
+    if(actionEl){
+      handleAction(actionEl.dataset.action, actionEl);
+      return;
+    }
+
+    var row = event.target.closest('.row[data-id]');
+    if(row){
+      openDetail(row.dataset.id);
+      return;
+    }
+
+    if(event.target === $('#dialogBackdrop')){
+      closeDialog();
+    }
+  });
+
+  document.addEventListener('keydown', function(event){
+    if(event.key === 'Escape'){
+      if($('#dialogBackdrop').classList.contains('open')){
+        closeDialog();
+        return;
+      }
+      if($('#detailPanel').classList.contains('open')){
+        closeDetail();
+        return;
+      }
+      var input = $('#searchInput');
+      if(document.activeElement === input){
+        if(input.value){
+          state.query = '';
+          input.value = '';
+          updateSearchUi();
+          renderList();
+        } else {
+          input.blur();
+        }
+      }
+      return;
+    }
+
+    if(event.key === '/' && state.page === 'startup' && !$('#dialogBackdrop').classList.contains('open')){
+      var target = event.target;
+      var tag = target && target.tagName ? target.tagName.toLowerCase() : '';
+      if(tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !target.isContentEditable){
+        event.preventDefault();
+        $('#searchInput').focus();
+        return;
+      }
+    }
+
+    if(event.key === 'Enter' || event.key === ' '){
+      if(event.target.closest && event.target.closest('.switch, button, a, input, select, textarea')){
+        return;
+      }
+      var row = event.target.closest && event.target.closest('.row[data-id]');
+      if(row){
+        event.preventDefault();
+        openDetail(row.dataset.id);
+      }
+    }
+  });
+
+  $('#searchInput').addEventListener('input', function(){
+    state.query = $('#searchInput').value;
+    updateSearchUi();
+    renderList();
+  });
+
+  $('#sortSelect').addEventListener('change', function(){
+    state.sort = $('#sortSelect').value;
+    renderList();
+  });
+
+  // Visible QA helpers: ?demo=detail / dialog / toast / backup / settings
+  var demo = new URLSearchParams(location.search).get('demo');
+  if(demo === 'detail'){
+    var demoItem = new URLSearchParams(location.search).get('item') || 'wechat';
+    setTimeout(function(){ openDetail(demoItem); }, 60);
+  } else if(demo === 'dialog'){
+    setTimeout(function(){ openDisableDialog(); }, 60);
+  } else if(demo === 'toast'){
+    setTimeout(function(){ handleToggle('wechat'); }, 80);
+  } else if(demo === 'backup'){
+    setTimeout(function(){ switchPage('backup'); }, 60);
+  } else if(demo === 'settings'){
+    setTimeout(function(){ switchPage('settings'); }, 60);
+  }
+
+  /* ---------- Init ---------- */
+  updateFilterUi();
+  updateSearchUi();
+  renderChrome();
+  renderList();
+  renderBackupPage();
+})();
+</script>
+</body>
+</html>
