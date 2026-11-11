@@ -20,6 +20,7 @@ internal sealed class BridgeHost : IDisposable
 
     private readonly WebView2 _webView;
     private readonly HostBackend _backend;
+    private readonly IconService _icons = new();
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _cts = new();
     private CoreWebView2? _core;
@@ -310,6 +311,7 @@ internal sealed class BridgeHost : IDisposable
             var manager = _backend.Manager!;
             snapshot = await manager.ScanAsync(cancellationToken);
             backups = await LoadBackupsAsync(manager, warnings, cancellationToken);
+            await EnrichIconsAsync(snapshot, cancellationToken);
 
             _snapshot = snapshot;
             _backups = backups;
@@ -1003,6 +1005,7 @@ internal sealed class BridgeHost : IDisposable
             var snapshot = await manager.ScanAsync(cancellationToken);
             var warnings = new List<string>();
             var backups = await LoadBackupsAsync(manager, warnings, cancellationToken);
+            await EnrichIconsAsync(snapshot, cancellationToken);
             _snapshot = snapshot;
             _backups = backups;
             TryRefreshSettings(manager);
@@ -1017,6 +1020,11 @@ internal sealed class BridgeHost : IDisposable
             AppLog.Error("Post-change rescan failed.", ex);
             SendError(null, "更改已提交，但刷新状态失败：" + ex.Message);
         }
+    }
+
+    private Task EnrichIconsAsync(StartupSnapshot snapshot, CancellationToken cancellationToken)
+    {
+        return Task.Run(() => _icons.Enrich(snapshot.Items), cancellationToken);
     }
 
     private static async Task<IReadOnlyList<BackupSummary>> LoadBackupsAsync(

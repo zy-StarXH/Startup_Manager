@@ -1027,7 +1027,7 @@
       '<div class="settings-row">' +
         '<div class="settings-text">' +
           '<div class="settings-title">启动项管理器</div>' +
-          '<div class="version-text">版本 1.0.0</div>' +
+          '<div class="version-text">版本 1.1.0</div>' +
           '<div class="settings-desc">修改前自动备份，应用后重新读取系统状态验证；验证失败会自动回滚。</div>' +
         '</div>' +
       '</div>' +

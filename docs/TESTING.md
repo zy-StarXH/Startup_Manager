@@ -31,6 +31,10 @@
 - 1440x1000 and 1024x768 screenshots; sidebar rail at <=900; no duplicated titlebar
   inside the WPF host.
 - Native shell: custom titlebar buttons, DPI 200%, WebView2 bridge round-trip.
+- Native icon extraction through the shell image factory: startup rows should show
+  real icons; services without an extractable image (for example packaged MSIX
+  services) should keep the letter-tile fallback. Verified against both Debug and
+  Release builds; the UI version label must read 1.1.0.
 
 ## Manual UAC acceptance (required once)
 
@@ -47,13 +51,17 @@
 
 - [x] Scans real registry Run, startup folders, startup-triggered tasks, and automatic services.
 - [x] Registry/folder toggles change StartupApproved and are reflected as real disabled state.
-- [ ] Tasks use native Enabled; services use native StartType. Implemented and unit/mock tested;
-      a real privileged toggle still needs the manual UAC pass below.
+- [x] Packaged services use the registry Start fallback with real backup and verification.
+      ChatGPT (`CodexSandboxService.OpenAI.Codex`) was disabled after a real UAC approval;
+      SCM and the registry both report DemandStart, and an active backup exists.
+- [ ] Tasks use native Enabled; ordinary services use native StartType. Implemented and
+      unit/mock tested; a real privileged ordinary-service/task toggle still needs manual acceptance.
 - [x] Every mutation has a backup; restore works; failed verification rolls back.
-      (Real registry backup/restore verified end-to-end; service/task backup paths use the same engine and tests.)
+      (Real registry and packaged-service backup/restore paths verified; task/service paths share the engine.)
 - [x] Protected OS/driver/security items cannot be changed through the service API.
-- [ ] UAC is on-demand, batched, and cancellation is harmless. Implemented; cancellation was
-      tested with fakes, not against a real secure-desktop prompt.
+- [ ] UAC is on-demand, batched, and cancellation is harmless. A real secure-desktop prompt
+      was approved for the packaged-service fallback; cancellation was tested with fakes,
+      not against a real secure-desktop prompt.
 - [x] No simulated impact seconds or other invented metrics remain.
 - [x] UI matches the approved prototype and all controls are real.
 - [x] Portable build launches on Windows 11 x64 with WebView2 available.
@@ -63,6 +71,8 @@ Environment note: the automated session was not elevated. Task Scheduler denied 
 temporary root task. Computer-use validation exercised the native window, real search/detail,
 and a real HKCU startup entry disable/restore. A harmless UAC prompt was then triggered and
 confirmed to live on the Windows secure desktop, which computer use cannot capture or operate;
-the request was canceled by stopping its caller, with no elevated command executed. That is why
-the two privileged rows remain manual acceptance items. Do not change UAC security settings
-just to automate this test.
+that request was canceled without an elevated command. Later, the packaged-service fallback
+for ChatGPT was approved manually and verified: SCM and the service registry both report
+Manual, with an active backup. Ordinary SCM service/task toggles and deliberate UAC
+cancellation still need manual acceptance. Do not change UAC security settings just to
+automate this test.
