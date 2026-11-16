@@ -19,7 +19,8 @@
     registry: { label: '注册表', icon: 'key', note: 'Windows 注册表 Run 启动项' },
     folder: { label: '启动文件夹', icon: 'folder', note: '启动文件夹快捷方式' },
     task: { label: '计划任务', icon: 'clock', note: 'Windows 任务计划程序' },
-    service: { label: '服务', icon: 'server', note: 'Windows 服务管理器' }
+    service: { label: '服务', icon: 'server', note: 'Windows 服务管理器' },
+    packagedApp: { label: '应用包', icon: 'grid', note: 'MSIX 应用的 Windows 登录启动任务' }
   };
 
   var SCOPE_META = {
@@ -29,6 +30,14 @@
   };
 
   var MECHANISM = {
+    packagedStartupTask: {
+      label: '应用包启动任务',
+      desc: '更改 Windows 为此 MSIX 应用保存的登录启动状态，与系统启动应用设置使用同一状态。应用自身可能在更新后重新声明启动任务。'
+    },
+    startupFolderQuarantine: {
+      label: '移出启动文件夹',
+      desc: '将原始快捷方式移入本工具的受控存储并写入 Windows 禁用状态。启用或从恢复中心还原时，会将原快捷方式放回原位置，不删除目标程序。'
+    },
     startupApproved: {
       label: '启动批准状态',
       desc: '写入 Windows 的启动禁用状态（StartupApproved），与任务管理器一致；不删除原始启动项。对于机器级项，禁用仅对当前用户生效。'
@@ -39,7 +48,7 @@
     },
     serviceStartType: {
       label: '服务启动类型',
-      desc: '将服务启动类型改为手动，下次开机不再自动启动；当前运行中的服务不会被强制停止。'
+      desc: '将服务启动类型改为手动，取消自动启动；其他程序或服务触发器仍可启动它。桌面应用可能还有独立的登录启动项，需要在“启动项”分类关闭。当前服务不会被停止。'
     }
   };
 
@@ -47,11 +56,12 @@
     registry: '打开文件所在位置',
     folder: '打开文件所在位置',
     task: '打开任务计划程序',
-    service: '打开服务管理器'
+    service: '打开服务管理器',
+    packagedApp: '打开启动应用设置'
   };
 
   var CATEGORY_META = {
-    startup: { label: '启动项', sources: ['registry', 'folder'] },
+    startup: { label: '启动项', sources: ['registry', 'folder', 'packagedApp'] },
     service: { label: '服务项', sources: ['service'] },
     task: { label: '计划任务', sources: ['task'] }
   };
@@ -513,7 +523,7 @@
   }
 
   function sourceRank(source) {
-    var order = { registry: 0, folder: 1, task: 2, service: 3 };
+    var order = { registry: 0, folder: 1, packagedApp: 2, task: 3, service: 4 };
     return Object.prototype.hasOwnProperty.call(order, source) ? order[source] : 9;
   }
 
@@ -686,6 +696,7 @@
         ? '发布者或程序路径未验证，默认受保护'
         : '此项目受系统保护，无法修改';
     } else if (item.userAllowed) toggleSub = '你已允许管理此未验证项';
+    else if (!item.enabled && item.source === 'service') toggleSub = '已取消服务自动启动；其他程序或触发器仍可启动它';
     else if (!item.enabled && item.managedByApp) toggleSub = '已由本工具禁用，原始配置保存在恢复中心';
     else if (!item.enabled) toggleSub = '已禁用，不会自动启动';
 
@@ -987,7 +998,7 @@
           ? '<span class="meta-chip">' + icon('check') + '已提升</span>'
           : '<span class="meta-chip admin">' + icon('shield') + '需要 UAC</span>') +
       '</div>' +
-      settingRowHtml('includeRegistry', '扫描注册表 Run 项', '包含当前用户与所有用户的注册表启动项。', settings.includeRegistry, busy) +
+      settingRowHtml('includeRegistry', '扫描注册表及应用包启动项', '包含注册表 Run 项和 MSIX 应用的登录启动任务。', settings.includeRegistry, busy) +
       settingRowHtml('includeStartupFolders', '扫描启动文件夹', '包含当前用户与所有用户的启动文件夹快捷方式。', settings.includeStartupFolders, busy) +
       settingRowHtml('includeScheduledTasks', '扫描计划任务', '包含登录时启动的计划任务；Microsoft 系统任务始终受保护。', settings.includeScheduledTasks, busy) +
       settingRowHtml('includeServices', '扫描系统服务', '包含自动启动的 Windows 服务；禁用会把启动类型改为手动。', settings.includeServices, busy) +
@@ -1027,7 +1038,7 @@
       '<div class="settings-row">' +
         '<div class="settings-text">' +
           '<div class="settings-title">启动项管理器</div>' +
-          '<div class="version-text">版本 1.1.0</div>' +
+          '<div class="version-text">版本 1.1.1</div>' +
           '<div class="settings-desc">修改前自动备份，应用后重新读取系统状态验证；验证失败会自动回滚。</div>' +
         '</div>' +
       '</div>' +

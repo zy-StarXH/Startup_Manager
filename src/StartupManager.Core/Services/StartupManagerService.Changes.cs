@@ -50,6 +50,10 @@ public sealed partial class StartupManagerService
             }
 
             targets.Add(item);
+            Log(
+                "setEnabled",
+                id,
+                $"目标：{item.Name}；来源：{SourceLabel(item.Source)}；当前：{(item.Enabled ? "启用" : "禁用")}；请求：{(enabled ? "启用" : "禁用")}。");
         }
 
         if (targets.Any(target => target.Protected))
@@ -333,6 +337,7 @@ public sealed partial class StartupManagerService
         try
         {
             await provider.ApplyEnabledAsync(item, false, isElevated, cancellationToken).ConfigureAwait(false);
+            Log("disable", item.Id, $"已写入“{item.Name}”的禁用状态，正在重新读取 Windows 状态。");
 
             bool verified;
             try
@@ -414,7 +419,9 @@ public sealed partial class StartupManagerService
             Log(
                 "disable",
                 item.Id,
-                "应用更改失败：" + ex.GetType().Name + "，回滚" + (rolledBack ? "成功。" : "失败。"));
+                "应用更改失败：" + ex.GetType().Name + "：" + ex.Message +
+                (ex.InnerException is null ? string.Empty : "；原因：" + ex.InnerException.Message) +
+                "，回滚" + (rolledBack ? "成功。" : "失败。"));
 
             return ChangeResult.Fail(
                 item.Id,

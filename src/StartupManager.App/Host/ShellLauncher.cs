@@ -22,6 +22,9 @@ internal static class ShellLauncher
             case StartupSource.Task:
                 StartShell("taskschd.msc", null);
                 break;
+            case StartupSource.PackagedApp:
+                OpenUrl("ms-settings:startupapps");
+                break;
             case StartupSource.Service:
                 StartShell("services.msc", null);
                 break;

@@ -6,7 +6,7 @@ without the lead agent's review.
 
 ## 1. Domain values
 
-`StartupSource` (JSON lowercase): `registry`, `folder`, `task`, `service`
+`StartupSource` (JSON camelCase): `registry`, `folder`, `task`, `service`, `packagedApp`
 
 `StartupScope` (JSON camelCase): `currentUser`, `allUsers`, `system`
 
@@ -14,6 +14,8 @@ without the lead agent's review.
 
 `Mechanism`:
 - `startupApproved` — Windows StartupApproved enable/disable state
+- `startupFolderQuarantine` — original file moved outside Startup into recoverable storage
+- `packagedStartupTask` — MSIX per-user Windows login startup task state
 - `scheduledTask` — Task Scheduler `Enabled` flag
 - `serviceStartType` — Windows service start type
 
@@ -22,6 +24,13 @@ Stable item id (`StartupItem.Id`):
 - Startup folder: `dir-` + SHA-256 hex of `scope|fullPath`
 - Scheduled task: `tsk-` + SHA-256 hex of `fullTaskPath`
 - Service: `svc-` + SHA-256 hex of lowercase service name
+- MSIX task: `pkg-` + SHA-256 hex of lowercase `packageFamilyName|taskId`
+
+For folder items, `enabled` describes whether an entry remains in the Startup
+directory. Legacy StartupApproved disable bytes alone do not count as a completed
+folder disable; the row explains that it can be closed again to move the file out.
+Common-folder changes require UAC and affect all users. MSIX startup tasks share
+the `includeRegistry` scanning switch with Run items. Policy states 3/4 stay locked.
 
 Hashes are lowercase hex. IDs must be stable across scans and are the only
 identifiers accepted by change/elevation APIs.

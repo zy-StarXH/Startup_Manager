@@ -50,7 +50,7 @@ public sealed class StartupItem
 
     public DateTimeOffset? LastModified { get; init; }
 
-    /// <summary>startupApproved | scheduledTask | serviceStartType</summary>
+    /// <summary>startupApproved | startupFolderQuarantine | packagedStartupTask | scheduledTask | serviceStartType</summary>
     public string? Mechanism { get; init; }
 
     /// <summary>Provider-private data. Never sent to the web UI.</summary>

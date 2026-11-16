@@ -8,7 +8,7 @@ namespace StartupManager.Core.Services;
 /// </summary>
 internal static partial class StartupItemIds
 {
-    [GeneratedRegex("^(reg|dir|tsk|svc)-[0-9a-fA-F]{64}$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("^(reg|dir|tsk|svc|pkg)-[0-9a-fA-F]{64}$", RegexOptions.CultureInvariant)]
     private static partial Regex ItemIdRegex();
 
     public static bool IsValid(string? itemId)

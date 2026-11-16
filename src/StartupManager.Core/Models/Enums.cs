@@ -6,7 +6,8 @@ public enum StartupSource
     Registry,
     Folder,
     Task,
-    Service
+    Service,
+    PackagedApp
 }
 
 /// <summary>Who the entry applies to.</summary>

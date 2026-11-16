@@ -4,9 +4,17 @@
 
 | Source | Real change | Scope |
 |---|---|---|
-| Registry Run / Startup folder | Windows `StartupApproved` disabled bytes (same mechanism Task Manager uses) | Current user's login |
+| Registry Run | Windows `StartupApproved` disabled bytes | Current user's login |
+| Startup folder | Move original file into recoverable storage, plus StartupApproved | User folder: current user; common folder: all users, requires UAC |
+| MSIX StartupTask | Windows per-user startup task state, with exact value backup/restore | Current user's login; policy-controlled tasks remain locked |
 | Scheduled task | Task Scheduler native `Enabled = false` | Machine / task ACL |
 | Service | Windows service start type Auto → Manual | Machine |
+
+Manual services may still be started by callers or triggers. Their desktop apps
+may have independent login entries. Never describe Manual as preventing all starts.
+Files still present in Startup are shown as active entries with a migration note
+when legacy StartupApproved state is disabled. Restores must not overwrite a
+recreated file or move files outside the configured Startup directories.
 
 No scanned command is ever executed. The app only reads metadata and, when the
 user asks, opens Explorer / Task Scheduler / Services for inspection.

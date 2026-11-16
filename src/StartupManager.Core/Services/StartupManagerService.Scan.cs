@@ -200,6 +200,7 @@ public sealed partial class StartupManagerService
                 StartupSource.Registry or StartupSource.Folder => "startupApproved",
                 StartupSource.Task => "scheduledTask",
                 StartupSource.Service => "serviceStartType",
+                StartupSource.PackagedApp => "packagedStartupTask",
                 _ => null
             },
             LastModified = backup.CreatedAt

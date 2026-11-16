@@ -14,6 +14,7 @@ public static class TestIds
             StartupSource.Folder => "dir",
             StartupSource.Task => "tsk",
             StartupSource.Service => "svc",
+            StartupSource.PackagedApp => "pkg",
             _ => throw new ArgumentOutOfRangeException(nameof(source))
         };
 

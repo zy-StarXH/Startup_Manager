@@ -11,7 +11,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($ExePath)) {
-    $ExePath = Join-Path $root 'src\StartupManager.App\bin\x64\Debug\net8.0-windows\win-x64\StartupManager.exe'
+    $ExePath = Join-Path $root 'src\StartupManager.App\bin\x64\Debug\net8.0-windows10.0.26100.0\win-x64\StartupManager.exe'
 }
 if ([string]::IsNullOrWhiteSpace($OutDir)) {
     $OutDir = Join-Path $root '_qa'

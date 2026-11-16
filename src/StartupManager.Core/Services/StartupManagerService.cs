@@ -132,6 +132,7 @@ public sealed partial class StartupManagerService : IStartupManager
         StartupSource.Folder => settings.IncludeStartupFolders,
         StartupSource.Task => settings.IncludeScheduledTasks,
         StartupSource.Service => settings.IncludeServices,
+        StartupSource.PackagedApp => settings.IncludeRegistry,
         _ => false
     };
 
@@ -141,6 +142,7 @@ public sealed partial class StartupManagerService : IStartupManager
         StartupSource.Folder => "启动文件夹",
         StartupSource.Task => "计划任务",
         StartupSource.Service => "系统服务",
+        StartupSource.PackagedApp => "应用包启动项",
         _ => "启动项"
     };
 

@@ -53,4 +53,10 @@ public sealed class FolderApprovalState
 
     /// <summary>The resolved command observed at capture time (diagnostics only).</summary>
     public string? Command { get; set; }
+
+    public bool Quarantined { get; set; }
+
+    public bool ManagesFile { get; set; }
+
+    public string QuarantineDirectory { get; set; } = string.Empty;
 }

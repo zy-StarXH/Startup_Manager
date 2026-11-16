@@ -134,6 +134,7 @@ public sealed class StartupProtectionPolicy : IProtectionPolicy
         {
             StartupSource.Task => EvaluateTask(item),
             StartupSource.Service => EvaluateService(item),
+            StartupSource.PackagedApp when item.Protected => new ProtectionDecision(true, item.ProtectionReason, false),
             _ => EvaluateRunEntry(item)
         };
     }

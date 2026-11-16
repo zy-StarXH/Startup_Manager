@@ -34,6 +34,7 @@ public static class TestItems
                 StartupSource.Registry or StartupSource.Folder => "startupApproved",
                 StartupSource.Task => "scheduledTask",
                 StartupSource.Service => "serviceStartType",
+                StartupSource.PackagedApp => "packagedStartupTask",
                 _ => null
             }
         };

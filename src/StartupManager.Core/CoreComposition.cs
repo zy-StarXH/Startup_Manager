@@ -23,13 +23,15 @@ public static class CoreComposition
         var startupFolder = new StartupFolderProvider();
         var scheduledTasks = new ScheduledTaskProvider();
         var services = new ServiceStartupProvider();
+        var packagedApps = new PackagedAppStartupProvider();
 
         var providers = new IStartupProvider[]
         {
             registry,
             startupFolder,
             scheduledTasks,
-            services
+            services,
+            packagedApps
         };
 
         var changeProviders = new IStartupChangeProvider[]
@@ -37,7 +39,8 @@ public static class CoreComposition
             registry,
             startupFolder,
             scheduledTasks,
-            services
+            services,
+            packagedApps
         };
 
         var backupStore = new JsonBackupStore(paths);

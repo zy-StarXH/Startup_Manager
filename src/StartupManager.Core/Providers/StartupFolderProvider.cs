@@ -8,8 +8,8 @@ namespace StartupManager.Core.Providers;
 
 /// <summary>
 /// Enumerates the per-user and common Startup folders and toggles entries with
-/// the per-user Windows StartupApproved\StartupFolder state. Shortcut and script
-/// files are never moved, renamed, or deleted.
+/// moving files into recoverable storage, alongside StartupApproved state.
+/// Presence in the Startup directory is considered an active launch entry.
 /// </summary>
 public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProvider
 {
@@ -23,13 +23,14 @@ public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProv
 
     private readonly string _userStartupFolder;
     private readonly string _commonStartupFolder;
+    private readonly string _quarantineDirectory;
 
     /// <summary>
     /// Resolves the real per-user and common Startup folders. This is a true
     /// parameterless constructor so reflection/DI activation works.
     /// </summary>
     public StartupFolderProvider()
-        : this(userStartupFolder: null, commonStartupFolder: null)
+        : this(userStartupFolder: null, commonStartupFolder: null, quarantineDirectory: null)
     {
     }
 
@@ -39,8 +40,10 @@ public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProv
     /// </summary>
     public StartupFolderProvider(
         string? userStartupFolder,
-        string? commonStartupFolder)
+        string? commonStartupFolder,
+        string? quarantineDirectory = null)
     {
+        _quarantineDirectory = NormalizeFolder(quarantineDirectory, StartupFolderQuarantine.DefaultDirectory);
         _userStartupFolder = NormalizeFolder(
             userStartupFolder,
             Environment.GetFolderPath(Environment.SpecialFolder.Startup));
@@ -81,6 +84,49 @@ public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProv
             seenIds,
             cancellationToken);
 
+        if (Directory.Exists(_quarantineDirectory))
+        {
+            foreach (var file in Directory.GetFiles(_quarantineDirectory, "*", SearchOption.TopDirectoryOnly))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var fileName = Path.GetFileName(file);
+                if (!SupportedExtensions.Contains(Path.GetExtension(fileName)))
+                {
+                    continue;
+                }
+
+                var separator = fileName.IndexOf('-');
+                if (separator < 0 || !fileName.StartsWith("dir-", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var itemId = fileName[..Math.Min(fileName.Length, 68)];
+                if (itemId.Length != 68)
+                {
+                    continue;
+                }
+
+                var original = StartupFolderQuarantine.FindOriginalPath(_quarantineDirectory, fileName);
+                if (original is null)
+                {
+                    continue;
+                }
+
+                var scope = GetScopeForPath(original);
+                if (scope is null || !string.Equals(itemId,
+                        StartupItemIds.CreateFolderId(scope.Value, original), StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                var item = StartupFolderQuarantine.CreateDisabledItem(_quarantineDirectory, itemId, original, scope.Value);
+                if (item is not null && seenIds.Add(item.Id))
+                {
+                    items.Add(item);
+                }
+            }
+        }
+
         return Task.FromResult<IReadOnlyList<StartupItem>>(items);
     }
 
@@ -92,6 +138,18 @@ public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProv
         cancellationToken.ThrowIfCancellationRequested();
 
         var target = ResolveTarget(item);
+        var wasQuarantined = StartupFolderQuarantine.IsQuarantined(_quarantineDirectory, item.Id, target.FullPath);
+        if (wasQuarantined)
+        {
+            var quarantinedState = StartupFolderQuarantine.Capture(_quarantineDirectory, item.Id, target.FullPath, target.Scope);
+            return Task.FromResult(new StateSnapshot
+            {
+                Kind = ProviderStateKind,
+                Json = JsonSerializer.Serialize(quarantinedState, JsonDefaults.Options),
+                Summary = "启动文件夹快捷方式已移出 Windows 启动目录"
+            });
+        }
+
         if (!File.Exists(target.FullPath))
         {
             throw new InvalidOperationException(
@@ -132,7 +190,9 @@ public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProv
             ApprovalFamily = StartupApprovalFamily.StartupFolder.ToString(),
             ApprovalValueExisted = approvalExists,
             ApprovalRawBase64 = approval is null ? null : Convert.ToBase64String(approval),
-            Command = command
+            Command = command,
+            ManagesFile = true,
+            QuarantineDirectory = _quarantineDirectory
         };
 
         return Task.FromResult(new StateSnapshot
@@ -153,7 +213,15 @@ public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProv
         cancellationToken.ThrowIfCancellationRequested();
 
         var target = ResolveTarget(item);
-        if (!File.Exists(target.FullPath))
+        if (enabled)
+        {
+            if (!File.Exists(target.FullPath) &&
+                !StartupFolderQuarantine.IsQuarantined(_quarantineDirectory, item.Id, target.FullPath))
+            {
+                throw new InvalidOperationException("找不到已关闭的启动文件，无法启用。");
+            }
+        }
+        else if (!File.Exists(target.FullPath))
         {
             throw new InvalidOperationException(
                 $"启动文件夹条目“{target.ValueName}”已不存在，未做任何更改。");
@@ -166,6 +234,15 @@ public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProv
 
         try
         {
+            if (enabled)
+            {
+                StartupFolderQuarantine.Restore(_quarantineDirectory, item.Id, target.FullPath);
+            }
+            else
+            {
+                StartupFolderQuarantine.Disable(_quarantineDirectory, item.Id, target.FullPath);
+            }
+
             StartupApproved.WriteApproval(
                 StartupApprovalFamily.StartupFolder,
                 target.ValueName,
@@ -173,8 +250,22 @@ public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProv
         }
         catch (Exception ex) when (IsAccessException(ex) || ex is InvalidOperationException)
         {
+            if (!enabled &&
+                !File.Exists(target.FullPath) &&
+                StartupFolderQuarantine.IsQuarantined(_quarantineDirectory, item.Id, target.FullPath))
+            {
+                try
+                {
+                    StartupFolderQuarantine.Restore(_quarantineDirectory, item.Id, target.FullPath);
+                }
+                catch
+                {
+                    // The transaction service attempts another restore from backup.
+                }
+            }
+
             throw new InvalidOperationException(
-                $"无法{(enabled ? "启用" : "禁用")}启动文件夹条目“{target.ValueName}”，Windows 启动批准状态写入失败。",
+                $"无法{(enabled ? "启用" : "禁用")}启动文件夹条目“{target.ValueName}”，启动文件或 Windows 启动状态写入失败。",
                 ex);
         }
 
@@ -190,7 +281,15 @@ public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProv
         cancellationToken.ThrowIfCancellationRequested();
 
         var target = ResolveTarget(item);
-        if (!File.Exists(target.FullPath))
+        if (enabled)
+        {
+            if (!File.Exists(target.FullPath))
+            {
+                return Task.FromResult(false);
+            }
+        }
+        else if (!StartupFolderQuarantine.IsQuarantined(_quarantineDirectory, item.Id, target.FullPath) ||
+                 File.Exists(target.FullPath))
         {
             return Task.FromResult(false);
         }
@@ -249,7 +348,8 @@ public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProv
             throw new InvalidOperationException("启动文件夹备份状态无法解析，未做任何更改。", ex);
         }
 
-        if (state is null || string.IsNullOrWhiteSpace(state.ValueName))
+        if (state is null || string.IsNullOrWhiteSpace(state.ValueName) ||
+            string.IsNullOrWhiteSpace(state.FullPath))
         {
             throw new InvalidOperationException("启动文件夹备份状态缺少值名称，未做任何更改。");
         }
@@ -272,11 +372,17 @@ public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProv
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(state.Scope) &&
-            (!Enum.TryParse<StartupScope>(state.Scope, ignoreCase: true, out var stateScope) ||
-             stateScope is not (StartupScope.CurrentUser or StartupScope.AllUsers)))
+        var actualScope = GetScopeForPath(state.FullPath);
+        if (!Enum.TryParse<StartupScope>(state.Scope, ignoreCase: true, out var stateScope) ||
+            actualScope != stateScope)
         {
             throw new InvalidOperationException("启动文件夹备份状态中的范围无效，未做任何更改。");
+        }
+
+        var restoreId = StartupItemIds.CreateFolderId(stateScope, state.FullPath);
+        if (!string.IsNullOrEmpty(backup.ItemId) && !string.Equals(restoreId, backup.ItemId, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("备份标识与启动文件路径不一致，未做任何更改。");
         }
 
         byte[]? original = null;
@@ -301,8 +407,41 @@ public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProv
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
-            // Only the approval value is touched. The shortcut file is never
-            // moved, recreated, or deleted, even when it has disappeared.
+            if (state.ManagesFile || StartupFolderQuarantine.IsQuarantined(_quarantineDirectory, restoreId, state.FullPath))
+            {
+                var directory = state.QuarantineDirectory.Length > 0
+                    ? state.QuarantineDirectory
+                    : _quarantineDirectory;
+                if (!string.Equals(
+                        Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory)),
+                        Path.TrimEndingDirectorySeparator(Path.GetFullPath(_quarantineDirectory)),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("备份中的启动文件保存位置不属于本工具，未恢复。");
+                }
+
+                var originalExists = File.Exists(state.FullPath);
+                var quarantinedExists = StartupFolderQuarantine.IsQuarantined(directory, restoreId, state.FullPath);
+                if (originalExists && quarantinedExists)
+                {
+                    throw new InvalidOperationException("原位置和已关闭副本同时存在，未覆盖任何文件。");
+                }
+
+                if (state.Quarantined && originalExists)
+                {
+                    StartupFolderQuarantine.Disable(directory, restoreId, state.FullPath);
+                }
+                else if (!state.Quarantined && quarantinedExists)
+                {
+                    StartupFolderQuarantine.Restore(directory, restoreId, state.FullPath);
+                }
+                else if (!originalExists && !quarantinedExists)
+                {
+                    throw new InvalidOperationException("启动文件及已关闭副本均已丢失，无法恢复。");
+                }
+            }
+
+            // The approval bytes are restored exactly as they were captured.
             if (original is not null)
             {
                 StartupApproved.WriteApproval(
@@ -407,14 +546,15 @@ public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProv
                 Publisher = publisher,
                 Source = StartupSource.Folder,
                 Scope = scope,
-                Enabled = StartupApproved.IsEnabled(approval),
-                RequiresAdmin = false,
+                Enabled = true,
+                RequiresAdmin = scope == StartupScope.AllUsers,
                 Location = fullPath,
-                SubLocation = GetSubLocation(extension, description),
+                SubLocation = GetSubLocation(extension, description) +
+                    (StartupApproved.IsEnabled(approval) ? string.Empty : " · Windows 已标记禁用，入口仍存在；可再次关闭以移出"),
                 Command = resolved.Command,
                 TargetPath = resolved.TargetPath,
                 LastModified = lastModified,
-                Mechanism = "startupApproved",
+                Mechanism = "startupFolderQuarantine",
                 Metadata =
                 {
                     ["scope"] = scope.ToString(),
@@ -475,7 +615,17 @@ public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProv
         return $"{kind} · {description}";
     }
 
-    private static StartupFolderTarget ResolveTarget(StartupItem item)
+    private StartupScope? GetScopeForPath(string fullPath)
+    {
+        if (!Path.IsPathFullyQualified(fullPath) || !SupportedExtensions.Contains(Path.GetExtension(fullPath)))
+            return null;
+        var parent = Path.GetDirectoryName(Path.GetFullPath(fullPath));
+        if (string.Equals(parent, _userStartupFolder, StringComparison.OrdinalIgnoreCase)) return StartupScope.CurrentUser;
+        if (string.Equals(parent, _commonStartupFolder, StringComparison.OrdinalIgnoreCase)) return StartupScope.AllUsers;
+        return null;
+    }
+
+    private StartupFolderTarget ResolveTarget(StartupItem item)
     {
         if (item.Source != StartupSource.Folder)
         {
@@ -496,7 +646,15 @@ public sealed class StartupFolderProvider : IStartupProvider, IStartupChangeProv
             ? parsedScope
             : throw new InvalidOperationException($"不支持的启动项范围：{scopeName}。");
 
+        if (fullPath.Contains("..", StringComparison.Ordinal) ||
+            !string.Equals(Path.GetFileName(fullPath), valueName, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("启动文件夹定位信息无效，请重新扫描后再操作。");
+        }
+
         var expectedId = StartupItemIds.CreateFolderId(scope, fullPath);
+        if (GetScopeForPath(fullPath) != scope)
+            throw new InvalidOperationException("目标不属于配置的启动文件夹，未做任何更改。");
         if (!string.IsNullOrEmpty(item.Id) &&
             !string.Equals(item.Id, expectedId, StringComparison.OrdinalIgnoreCase))
         {
