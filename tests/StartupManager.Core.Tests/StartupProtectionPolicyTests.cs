@@ -173,6 +173,7 @@ public sealed class StartupProtectionPolicyTests
 
         Assert.True(decision.IsProtected);
         Assert.Contains("驱动", decision.Reason);
+        Assert.True(decision.CanOverride);
     }
 
     [Fact]
@@ -192,7 +193,7 @@ public sealed class StartupProtectionPolicyTests
     }
 
     [Fact]
-    public void Microsoft_service_protection_cannot_be_overridden()
+    public void Microsoft_service_is_locked_by_default_but_can_be_explicitly_unlocked()
     {
         var item = ServiceItem(
             "DiagTrack",
@@ -203,11 +204,11 @@ public sealed class StartupProtectionPolicyTests
         var decision = _policy.Evaluate(item);
 
         Assert.True(decision.IsProtected);
-        Assert.False(decision.CanOverride);
+        Assert.True(decision.CanOverride);
     }
 
     [Fact]
-    public void Core_service_protection_cannot_be_overridden()
+    public void Core_service_is_locked_by_default_but_can_be_explicitly_unlocked()
     {
         var item = ServiceItem(
             "RpcSs",
@@ -218,7 +219,7 @@ public sealed class StartupProtectionPolicyTests
         var decision = _policy.Evaluate(item);
 
         Assert.True(decision.IsProtected);
-        Assert.False(decision.CanOverride);
+        Assert.True(decision.CanOverride);
     }
 
     [Fact]

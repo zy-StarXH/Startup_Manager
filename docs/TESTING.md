@@ -1,5 +1,18 @@
 # Testing and acceptance plan
 
+2026-11-17 / v1.2.0: Release build passes with 225 tests passed and 1 skipped.
+Ten new regression cases cover tool-protected system tasks/services/Run/folder
+entries: default lock, explicit unlock, settings persistence, fresh elevated-manager
+scan, UAC precheck, backup ordering, verification, relock, recovery while locked,
+synthetic disabled-service permissions, Windows policy and safety-check refusal,
+stale permission revocation and rollback after an OS access denial. All startup
+mutations in these cases use in-memory providers; real system services are untouched.
+
+`node tools/qa-protection.mjs --native`: 10 native UI checks, with real protected
+task confirmation opened and canceled. `node tools/qa-protection.mjs`: 20 in-memory
+demo UI checks for cancel/unlock/disable/restore/relock; screenshots inspected.
+The v1.1.2 icon transparency/UI checks also pass on the 1.2.0 candidate.
+
 2026-11-17 / v1.1.2: Release build passes with 215 tests passed and 1 skipped.
 Six icon regression cases exercise native HBITMAP-to-PNG conversion: transparent
 and antialiased pixels, premultiplied colors, genuine black artwork, row orientation,

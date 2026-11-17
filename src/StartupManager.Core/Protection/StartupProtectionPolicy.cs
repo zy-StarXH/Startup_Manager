@@ -5,7 +5,8 @@ using StartupManager.Core.Providers;
 namespace StartupManager.Core.Protection;
 
 /// <summary>
-/// Safety-first protection rules for all four startup sources.
+/// Default protection rules for startup sources. Tool-owned locks can be
+/// overridden per item; Windows policy-controlled tasks remain read-only.
 /// The policy only classifies items; it never reads or changes the machine.
 /// </summary>
 public sealed class StartupProtectionPolicy : IProtectionPolicy
@@ -130,13 +131,16 @@ public sealed class StartupProtectionPolicy : IProtectionPolicy
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        return item.Source switch
+        if (item.Source == StartupSource.PackagedApp && item.Protected)
+            return new ProtectionDecision(true, item.ProtectionReason, false);
+
+        var decision = item.Source switch
         {
             StartupSource.Task => EvaluateTask(item),
             StartupSource.Service => EvaluateService(item),
-            StartupSource.PackagedApp when item.Protected => new ProtectionDecision(true, item.ProtectionReason, false),
             _ => EvaluateRunEntry(item)
         };
+        return decision.IsProtected ? decision with { CanOverride = true } : decision;
     }
 
     private static ProtectionDecision EvaluateTask(StartupItem item)
@@ -222,7 +226,7 @@ public sealed class StartupProtectionPolicy : IProtectionPolicy
         if (publisher.Length == 0 || path.Length == 0)
         {
             // Identity could not be established. Lock by default, but allow an
-            // explicit user override. Hard protections above stay locked.
+            // explicit user override, as with other tool-owned protections.
             return new ProtectionDecision(true, ServiceReasonUnverified, true, CanOverride: true);
         }
 

@@ -19,10 +19,10 @@ public sealed class StartupItem
     public bool Protected { get; set; }
     public string? ProtectionReason { get; set; }
 
-    /// <summary>Protected only because publisher/path could not be verified.</summary>
+    /// <summary>The tool's default protection can be explicitly unlocked per item.</summary>
     public bool CanOverride { get; set; }
 
-    /// <summary>The user explicitly allowed management of this unverified item.</summary>
+    /// <summary>The user explicitly allowed management of this protected item.</summary>
     public bool UserAllowed { get; set; }
 
     /// <summary>True for an MSIX-packaged service whose start type is protected by the package.</summary>

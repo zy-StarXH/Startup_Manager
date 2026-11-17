@@ -321,7 +321,7 @@
       scope: 'allUsers',
       enabled: true,
       protected: true,
-      protectionReason: '位于 \\Microsoft\\Windows 下的系统任务，由 Windows 维护。本工具不会修改它。',
+      protectionReason: '位于 \\Microsoft\\Windows 下的系统任务，默认受工具保护，可在详情中逐项允许管理。',
       requiresAdmin: true,
       managedByApp: false,
       location: '任务计划程序库 \\Microsoft\\Windows\\EdgeUpdate\\MicrosoftEdgeUpdateTaskMachineUA',
@@ -553,6 +553,9 @@
     var backupList = clone(backups);
     var currentSettings = clone(settings);
     var currentSystem = clone(system);
+    var protectedIds = new Set(items.filter(function (item) { return item.protected; }).map(function (item) { return item.id; }));
+    items.forEach(function (item) { item.canOverride = !!item.protected; item.userAllowed = false; });
+    currentSettings.userAllowedItemIds = [];
     var warnings = options.warnings
       ? ['演示提示：1 个计划任务未能读取触发器信息，已按登录启动处理。']
       : [];
@@ -712,6 +715,18 @@
       }, backup.requiresAdmin ? 1150 : 680);
     }
 
+    function applyUserOverride(requestId, itemId, allowed) {
+      var item = findItem(itemId);
+      if (!item || !item.canOverride) { fail(requestId, '此项目不能解除工具保护。'); return; }
+      item.userAllowed = allowed;
+      item.protected = protectedIds.has(item.id) && !allowed;
+      currentSettings.userAllowedItemIds = items.filter(function (row) { return row.userAllowed; }).map(function (row) { return row.id; });
+      later(function () {
+        emitState();
+        reply(requestId, allowed ? '已允许管理；启动状态未改变。' : '已恢复工具保护；启动状态未改变。');
+      }, 150);
+    }
+
     function applySaveSettings(requestId, nextSettings) {
       if (!nextSettings || typeof nextSettings !== 'object') {
         fail(requestId, '设置数据无效。');
@@ -780,6 +795,10 @@
           break;
         case 'setEnabled':
           applySetEnabled(requestId, payload.itemIds, payload.enabled === true);
+          break;
+        case 'setUserOverride':
+          if (typeof payload.allowed !== 'boolean') { fail(requestId, 'allowed 必须为布尔值。'); return; }
+          applyUserOverride(requestId, payload.itemId, payload.allowed);
           break;
         case 'restoreBackup':
           applyRestoreBackup(requestId, payload.backupId);

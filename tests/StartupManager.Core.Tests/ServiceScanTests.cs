@@ -337,7 +337,7 @@ public sealed class ServiceScanTests
     }
 
     [Fact]
-    public async Task Allowlist_cannot_override_hard_system_protection()
+    public async Task Allowlist_cannot_override_windows_policy_restriction()
     {
         using var paths = new TestPaths();
         var store = new InMemoryBackupStore(paths.Paths.BackupDirectory);
@@ -355,7 +355,7 @@ public sealed class ServiceScanTests
 
         var policy = new FakeProtectionPolicy
         {
-            Rule = _ => new ProtectionDecision(true, "Windows 核心服务", true, CanOverride: false)
+            Rule = _ => new ProtectionDecision(true, "Windows 策略限制", true, CanOverride: false)
         };
         var manager = CreateManager(
             paths,

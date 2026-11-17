@@ -409,7 +409,7 @@
       el.metaChip.hidden = false;
     } else if (counts.protectedCount > 0) {
       el.metaChip.className = 'meta-chip protected';
-      el.metaChip.innerHTML = icon('lock') + '<span>' + counts.protectedCount + ' 项受系统保护</span>';
+      el.metaChip.innerHTML = icon('lock') + '<span>' + counts.protectedCount + ' 项受工具保护</span>';
       el.metaChip.hidden = false;
     } else {
       el.metaChip.className = 'meta-chip';
@@ -556,7 +556,7 @@
     var pending = isItemPending(item.id);
     var disabled = item.protected || pending;
     var cls = 'switch' + (item.enabled ? ' on' : '') + (pending ? ' pending' : '');
-    var title = item.protected ? '系统保护项，无法修改' : (pending ? '正在应用更改…' : '');
+    var title = item.protected ? '受保护项，请在详情中查看管理方式' : (pending ? '正在应用更改…' : '');
     var dataAttr = (!item.protected && !pending) ? ' data-toggle-item="' + esc(item.id) + '"' : '';
     return '<button type="button" class="' + cls + '" role="switch" aria-checked="' + String(!!item.enabled) + '"' +
       ' aria-label="' + (item.enabled ? '关闭 ' : '开启 ') + esc(item.name) + ' 的自启动"' +
@@ -575,8 +575,8 @@
     var managed = (!item.enabled && item.managedByApp) ? '<span class="managed-tag">· 由本工具禁用</span>' : '';
     var lockChip = item.protected
       ? '<span class="lock-chip' + (item.canOverride ? ' overridable' : '') + '" title="' +
-          (item.canOverride ? '发布者或程序路径未验证，可在详情中允许管理' : '系统保护项，无法修改') + '">' +
-          icon(item.canOverride ? 'alert' : 'lock') + (item.canOverride ? '未验证' : '受保护') + '</span>'
+          (item.canOverride ? '工具保护项，可在详情中允许管理' : '受保护项，请在详情中查看管理方式') + '">' +
+          icon(item.canOverride ? 'alert' : 'lock') + '受保护' + '</span>'
       : '';
     var userChip = item.userAllowed ? '<span class="user-chip">' + icon('check') + '已允许</span>' : '';
     var permChip = (item.requiresAdmin && !item.protected) ? '<span class="perm-chip">' + icon('shield') + '管理员</span>' : '';
@@ -637,12 +637,12 @@
   function howCardHtml(item) {
     if (item.protected) {
       var overridable = !!item.canOverride;
-      var reason = item.protectionReason || '该项目由 Windows 或硬件驱动管理，暂不支持修改。';
+      var reason = item.protectionReason || '该项目默认受本工具保护。';
       if (overridable) {
-        reason += ' 如确认信任该程序，可以在下方允许管理。';
+        reason += ' 如确认需要调整，可以在下方允许管理。';
       }
       return '<div class="how-card protected' + (overridable ? ' overridable' : '') + '">' +
-        '<div class="how-head">' + icon(overridable ? 'alert' : 'lock') + (overridable ? '需要额外确认' : '系统保护项') + '</div>' +
+        '<div class="how-head">' + icon(overridable ? 'alert' : 'lock') + (overridable ? '默认保护，可逐项解锁' : 'Windows 策略或安全限制') + '</div>' +
         '<p class="how-desc">' + esc(reason) + '</p>' +
         '</div>';
     }
@@ -681,7 +681,7 @@
     var activeBackup = activeBackupForItem(item.id);
     var lockChip = item.protected
       ? '<span class="lock-chip' + (item.canOverride ? ' overridable' : '') + '">' +
-          icon(item.canOverride ? 'alert' : 'lock') + (item.canOverride ? '未验证' : '受保护') + '</span>'
+          icon(item.canOverride ? 'alert' : 'lock') + '受保护' + '</span>'
       : '';
     var userChip = item.userAllowed ? '<span class="user-chip">' + icon('check') + '已允许</span>' : '';
     var packageChip = item.isPackagedService ? '<span class="lock-chip packaged">应用包</span>' : '';
@@ -693,9 +693,9 @@
     if (pending) toggleSub = '正在应用更改，请稍候…';
     else if (item.protected) {
       toggleSub = item.canOverride
-        ? '发布者或程序路径未验证，默认受保护'
-        : '此项目受系统保护，无法修改';
-    } else if (item.userAllowed) toggleSub = '你已允许管理此未验证项';
+        ? '默认锁定，可在下方允许管理'
+        : '此项目受 Windows 策略或安全限制，无法在此修改';
+    } else if (item.userAllowed) toggleSub = '你已允许管理此受保护项';
     else if (!item.enabled && item.source === 'service') toggleSub = '已取消服务自动启动；其他程序或触发器仍可启动它';
     else if (!item.enabled && item.managedByApp) toggleSub = '已由本工具禁用，原始配置保存在恢复中心';
     else if (!item.enabled) toggleSub = '已禁用，不会自动启动';
@@ -709,7 +709,7 @@
     }
 
     var userNote = item.userAllowed
-      ? '<div class="admin-note user-note">' + icon('info') + '<span>你已允许管理此未验证项。修改前仍会自动备份并验证；可以随时恢复系统保护。</span></div>'
+      ? '<div class="admin-note user-note">' + icon('info') + '<span>你已允许管理此受保护项。后续修改仍会自动备份、验证并按需请求管理员权限；可随时恢复工具保护。</span></div>'
       : '';
     var packagedNote = item.isPackagedService
       ? '<div class="admin-note packaged-note">' + icon('info') +
@@ -720,10 +720,10 @@
     if (item.protected) {
       footnote = icon(item.canOverride ? 'alert' : 'lock') + '<span>' +
         (item.canOverride
-          ? '未验证项默认锁定；允许管理后，修改仍会先备份并验证。'
-          : '系统保护项不可修改，仅展示启动配置。') + '</span>';
+          ? '仅此项目解除工具保护；修改仍须备份、验证和相应的系统权限。'
+          : 'Windows 策略限制或安全检查失败无法通过本工具解除。') + '</span>';
     } else if (item.userAllowed) {
-      footnote = icon('check') + '<span>已允许管理未验证项；每次修改仍会备份并在验证成功后报告成功。</span>';
+      footnote = icon('check') + '<span>已允许管理；恢复工具保护不会还原启动状态，原始配置可在恢复中心还原。</span>';
     } else {
       footnote = icon('shield') + '<span>修改前自动备份；仅在系统状态验证成功后才会报告成功。</span>';
     }
@@ -732,7 +732,7 @@
       ? '<button class="btn" data-action="allow-unverified">' + icon('shield') + '允许管理…</button>'
       : '';
     var relockButton = item.userAllowed && !pending
-      ? '<button class="btn ghost" data-action="relock-item">' + icon('lock') + '恢复系统保护</button>'
+      ? '<button class="btn ghost" data-action="relock-item">' + icon('lock') + '恢复工具保护</button>'
       : '';
 
     var restoreButton = '';
@@ -1000,7 +1000,7 @@
       '</div>' +
       settingRowHtml('includeRegistry', '扫描注册表及应用包启动项', '包含注册表 Run 项和 MSIX 应用的登录启动任务。', settings.includeRegistry, busy) +
       settingRowHtml('includeStartupFolders', '扫描启动文件夹', '包含当前用户与所有用户的启动文件夹快捷方式。', settings.includeStartupFolders, busy) +
-      settingRowHtml('includeScheduledTasks', '扫描计划任务', '包含登录时启动的计划任务；Microsoft 系统任务始终受保护。', settings.includeScheduledTasks, busy) +
+      settingRowHtml('includeScheduledTasks', '扫描计划任务', '包含登录时启动的计划任务；Microsoft 系统任务默认保护，可在详情中逐项解锁。', settings.includeScheduledTasks, busy) +
       settingRowHtml('includeServices', '扫描系统服务', '包含自动启动的 Windows 服务；禁用会把启动类型改为手动。', settings.includeServices, busy) +
       '</div>';
 
@@ -1013,6 +1013,10 @@
     }).join('');
 
     html += '<div class="settings-group-title">安全与备份</div><div class="settings-card">' +
+      '<div class="settings-row"><div class="settings-text">' +
+        '<div class="settings-title">受保护项管理</div>' +
+        '<div class="settings-desc">在项目详情中逐项“允许管理”或“恢复工具保护”。解锁不改变启动状态；Windows 策略和权限限制仍然有效。</div>' +
+      '</div></div>' +
       '<div class="settings-row">' +
         '<div class="settings-text">' +
           '<div class="settings-title">修改前自动备份</div>' +
@@ -1038,7 +1042,7 @@
       '<div class="settings-row">' +
         '<div class="settings-text">' +
           '<div class="settings-title">启动项管理器</div>' +
-          '<div class="version-text">版本 1.1.2</div>' +
+          '<div class="version-text">版本 1.2.0</div>' +
           '<div class="settings-desc">修改前自动备份，应用后重新读取系统状态验证；验证失败会自动回滚。</div>' +
         '</div>' +
       '</div>' +
@@ -1377,7 +1381,7 @@
 
     var noteParts = [];
     if (counts.protectedCount > 0) {
-      noteParts.push('系统保护项会自动跳过。');
+      noteParts.push('未解锁的保护项会自动跳过。');
     }
     if (adminTargets > 0) {
       noteParts.push(isElevated
@@ -1409,14 +1413,14 @@
   function openUnlockDialog(item) {
     if (!item || !item.protected || !item.canOverride) return;
     ui.dialog = { type: 'unlock', id: item.id };
-    el.dialogTitle.textContent = '允许管理未验证项？';
-    el.dialogDesc.textContent = '无法确认「' + item.name + '」的发布者或程序路径。';
+    el.dialogTitle.textContent = '允许管理受保护项？';
+    el.dialogDesc.textContent = '「' + item.name + '」：' + (item.protectionReason || '此项目默认受工具保护。');
     el.dialogNote.textContent =
-      '只有在确认信任该程序时才允许管理。允许后，修改前仍会备份并重新读取系统状态验证；如果它是服务，修改时仍会通过 UAC。你可以随时恢复系统保护。' +
+      '本次仅解除该项目的工具保护，不会改变启动状态。修改系统组件可能影响 Windows、网络、设备或安全功能，请确认你了解该项目的用途。后续修改仍会备份、验证并按需请求 UAC；Windows 拒绝的操作不会被绕过。可随时恢复工具保护，或在恢复中心还原原始配置。' +
       (item.isPackagedService
         ? ' 该服务属于 MSIX 应用包，修改会使用管理员注册表启动值，重启后生效，应用更新可能重置。'
         : '');
-    el.dialogConfirm.textContent = '允许管理';
+    el.dialogConfirm.textContent = '我了解风险，允许管理';
     el.dialogConfirm.dataset.action = 'confirm-unlock';
     openDialog();
   }
@@ -1443,9 +1447,9 @@
       finishOperation(promise);
       showToast({
         type: 'success',
-        title: allowed ? '已允许管理「' + item.name + '」' : '已恢复「' + item.name + '」的系统保护',
+        title: allowed ? '已允许管理「' + item.name + '」' : '已恢复「' + item.name + '」的工具保护',
         msg: (result && result.message) ||
-          (allowed ? '修改前仍会备份并验证；服务修改仍需 UAC。' : '该项目重新处于系统保护锁定状态。')
+          (allowed ? '修改前仍会备份并验证；服务修改仍需 UAC。' : '该项目重新处于工具保护锁定状态，启动配置未改变。')
       });
     }).catch(function (error) {
       finishOperation(promise);

@@ -91,4 +91,7 @@ public sealed class RecordingStartupManager : IStartupManager
         Settings = settings;
         return Task.CompletedTask;
     }
+
+    public Task<ChangeResult> SetUserOverrideAsync(string itemId, bool allowed, CancellationToken cancellationToken) =>
+        Task.FromResult(new ChangeResult { Success = true, Verified = true, ItemId = itemId });
 }

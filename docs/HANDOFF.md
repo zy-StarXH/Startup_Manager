@@ -1,12 +1,25 @@
 # 启动项管理器 · 项目交接文档
 
 > 最后更新：2026-11-17  
-> 当前版本：**1.1.2**<br>
+> 当前版本：**1.2.0**<br>
 > 仓库：<https://github.com/zy-StarXH/Startup_Manager>  
-> 主分支：`main`，当前发布提交以 `git log` 为准（`v1.1.2` 标签）<br>
-> 最新发布：<https://github.com/zy-StarXH/Startup_Manager/releases/tag/v1.1.2>
+> 主分支：`main`，当前发布提交以 `git log` 为准（`v1.2.0` 标签）<br>
+> 最新发布：<https://github.com/zy-StarXH/Startup_Manager/releases/tag/v1.2.0>
 
 ## 0. 交接摘要
+
+v1.2.0 新增工具保护项的逐项管理：所有工具分类的保护项（包括系统/核心/安全/
+Microsoft/驱动相关/未验证项）默认锁定，但用户可在详情确认“允许管理”，并随时
+“恢复工具保护”。Windows 策略限制和安全检查失败仍不可覆盖。此行为由用户明确
+要求新增，替代旧版本“硬系统保护不可覆盖”的规则。
+
+`StartupManagerService.SetUserOverrideAsync` 重新扫描校验请求并保存用户许可；
+解锁和重新锁定不修改启动状态。备份生成的禁用行也重新应用保护和许可；恢复中心
+仍可还原已有备份。解锁后继续执行 UAC、备份、验证和失败回滚，不绕过 Windows ACL。
+
+验证：225 项测试通过、1 项权限相关跳过；保护界面 30 项检查通过，原生模式仅打开
+并取消真实系统任务的确认框，修改流程在内存演示数据中验证；没有修改真实系统服务。
+原始图标与透明度回归检查通过。说明见 `docs/releases/v1.2.0.md`。
 
 v1.1.2 修复图标黑边：`IconService` 直接读取 Shell HBITMAP 的预乘 BGRA 像素，
 保留透明通道后编码为 PNG；不再经过丢失 alpha 的 `Image.FromHbitmap`。
@@ -223,12 +236,11 @@ UI 不应把乐观更新当成最终状态。
 
 ### 4.3 保护与“允许管理”
 
-- 硬保护：驱动、Windows 关键/安全服务、微软签名服务、Windows 目录服务、
-  `\Microsoft\Windows\*` 任务、Windows 安全启动项。不可覆盖。
-- 未验证服务：发布者或路径无法确认时锁定，但 `CanOverride=true`。
+- 工具默认保护：系统/核心/安全服务、微软服务、Windows 目录服务、驱动相关项、
+  `\Microsoft\Windows\*` 任务及未验证项等，均为 `CanOverride=true`，需用户逐项确认。
 - 用户确认后把稳定 itemId 写入 `settings.userAllowedItemIds`；
   后续扫描只对策略仍标记 `CanOverride` 的项解除保护。
-- 硬保护永远忽略 allowlist。
+- Windows 策略控制的应用包任务和安全检查失败永远忽略 allowlist。
 - 允许管理不等于跳过安全：仍然需要 UAC、备份、验证。
 - MSIX StartupTask 的 Windows 策略状态 3/4 直接锁定，不提供“允许管理”。
 
@@ -511,7 +523,7 @@ node _qa\release-check-1.1.1.mjs
    备份、日志和 `DisabledStartupItems` 都要保留；不要覆盖用户重新创建的启动文件。
 6. **不要泄露 GitHub token**；只通过 Git Credential Manager/环境变量短暂使用。
 7. 修改前后端契约时，同时更新 `docs/CONTRACT.md`、模型、序列化测试和前端。
-8. 修改保护策略时，补充“硬保护不可覆盖”和“未验证服务可覆盖”的测试。
+8. 修改保护策略时，覆盖“工具默认保护可逐项解锁、Windows 策略不可覆盖、权限和回滚仍生效”。
 9. 任何 mutation 都必须保持：备份先落盘、apply 后重读验证、失败回滚、
    UI 只在宿主返回后显示最终状态。
 10. 并行开发时遵循 `docs/AGENT_BRIEF.md` 的文件所有权和构建锁；构建统一走

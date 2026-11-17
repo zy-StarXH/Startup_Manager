@@ -133,12 +133,10 @@ public sealed partial class StartupManagerService
             }
 
             var synthetic = CreateSyntheticItem(backup);
-            // A backup can only exist for an item that was allowed to change.
-            // Keep the synthetic restore row manageable even if the current
-            // policy no longer has enough live metadata to evaluate it safely.
-            // The restore center applies the same rule independently.
-            synthetic.Protected = false;
-            synthetic.ProtectionReason = null;
+            // Keep per-item permissions consistent after a disabled service
+            // leaves the live scan. The recovery center remains independently
+            // available to restore an existing backup even after relocking.
+            ApplyProtection(synthetic, settings);
             synthetic.RequiresAdmin |= backup.RequiresAdmin;
             synthetic.ManagedByApp = true;
             items.Add(synthetic);

@@ -21,19 +21,25 @@ user asks, opens Explorer / Task Scheduler / Services for inspection.
 
 ## Protection rules
 
-- Never expose a toggle for OS-critical services, driver services, Microsoft
-  signed automatic services, or known audio/display/security support services.
-- Never expose a toggle for tasks under `\Microsoft\Windows\`.
+- Default-lock system services, driver-related services, Microsoft tasks and
+  security startup entries. Since v1.2.0, the user's explicit per-item decision
+  may unlock any tool-owned protection category, including critical/system items.
+- Unlocking changes only the tool allowlist, not the Windows startup state.
+  Show the original protection reason and consequences before confirmation.
+  Do not infer that a protected component is advertising or unnecessary.
 - Reject protected IDs again inside the service layer, not just in the UI.
 - Batch operations skip protected entries and show the real skipped count.
 - UI action copy must describe the actual mechanism. Do not claim entries are
   deleted when StartupApproved is used.
-- An item locked only because its publisher/path could not be verified may be
-  unlocked by an explicit user decision. This exception must never apply to
-  critical, driver, security or Microsoft-owned protections. The UI must warn
-  that the program is untrusted, keep UAC/backup/verification active, and offer
-  "restore system protection". The allowlist is stored in settings and re-applied
-  only to items the protection policy marks `CanOverride`.
+- Per-item permissions persist in `userAllowedItemIds`. Backend unlock requests
+  validate fresh scan/policy state. A new elevated helper reads the same list.
+  UAC, backups, verification, error reporting and rollback remain active.
+- Offer "restore tool protection" without altering startup state. Backup-only
+  disabled items also respect current permissions; the recovery center can
+  still restore an existing backup after the entry is relocked.
+- Windows policy-controlled MSIX states 3/4 and failed safety evaluation are
+  not tool-owned locks and cannot be overridden. Never change ACLs, ownership,
+  group policy, or escalate beyond the existing UAC flow to force a denied write.
 - MSIX packaged services deny SCM `SERVICE_CHANGE_CONFIG` to administrators by
   design. The packaged-service registry `Start` value fallback is allowed only
   after the user has explicitly allowed management, requires UAC, is backed up

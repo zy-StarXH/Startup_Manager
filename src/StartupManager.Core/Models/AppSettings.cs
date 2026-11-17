@@ -17,8 +17,8 @@ public sealed class AppSettings
     public double UiFontScale { get; set; } = 1.0;
 
     /// <summary>
-    /// Stable IDs of unverified-protected items the user explicitly chose to manage.
-    /// Hard OS/driver/security protections ignore this list.
+    /// Stable IDs of tool-protected items the user explicitly chose to manage.
+    /// Windows policy-controlled tasks and failed safety checks ignore this list.
     /// </summary>
     public List<string> UserAllowedItemIds { get; set; } = new();
 }

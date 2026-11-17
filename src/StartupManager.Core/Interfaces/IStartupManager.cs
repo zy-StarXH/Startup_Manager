@@ -10,6 +10,7 @@ public interface IStartupManager
     string LogDirectory { get; }
 
     Task<StartupSnapshot> ScanAsync(CancellationToken cancellationToken);
+    Task<ChangeResult> SetUserOverrideAsync(string itemId, bool allowed, CancellationToken cancellationToken);
     Task<BatchChangeResult> SetEnabledAsync(IReadOnlyCollection<string> itemIds, bool enabled, bool isElevated, CancellationToken cancellationToken);
     Task<ChangeResult> RestoreBackupAsync(string backupId, bool isElevated, CancellationToken cancellationToken);
     Task<IReadOnlyList<BackupSummary>> GetBackupsAsync(bool includeRestored, CancellationToken cancellationToken);

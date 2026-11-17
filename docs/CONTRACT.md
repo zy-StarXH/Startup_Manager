@@ -66,6 +66,9 @@ Notes:
 - `command` is display-only and must never be executed.
 - `requiresAdmin` means the change is expected to need UAC.
 - `protected` rows must not be changed by the UI.
+- `canOverride` means the user can explicitly unlock this tool-owned protection
+  through `setUserOverride`; `userAllowed` means that permission is saved.
+  Windows policy restrictions and failed safety evaluation remain read-only.
 - `managedByApp` is true for disabled rows that only exist in our backup store
   (for example a service moved from Auto to Manual).
 - `icon` is an optional `data:image/png;base64,...`; the UI falls back to a
@@ -115,8 +118,11 @@ unique `requestId` where a response is expected.
 Allowed commands: `refresh`, `setEnabled`, `restoreBackup`, `saveSettings`,
 `setUserOverride`, `openItemLocation`, `openBackupFolder`, `openLogFolder`,
 `copyLocation`. Unknown commands and malformed IDs must be rejected.
-`setUserOverride` is accepted only for protected items whose `canOverride` is
-true, or to remove an existing user override; hard protections are rejected.
+`setUserOverride` delegates to `IStartupManager.SetUserOverrideAsync`. It accepts
+an explicit unlock only after a fresh backend scan confirms `canOverride=true`.
+All tool-owned protection categories can be unlocked; Windows-policy locks and
+failed safety checks cannot. Revocation also accepts a stale but valid item ID.
+Unlock/relock saves the allowlist and does not mutate the Windows startup state.
 
 `setEnabled` semantics:
 - Empty or unknown ids are rejected.

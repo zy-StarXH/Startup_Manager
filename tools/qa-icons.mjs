@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 
-const output = path.resolve(process.argv[2] || '_qa/icons-1.1.2');
+const expectedVersion = fs.readFileSync(new URL('../Directory.Build.props', import.meta.url), 'utf8').match(/<VersionPrefix>([^<]+)<\/VersionPrefix>/)[1];
+const output = path.resolve(process.argv[2] || '_qa/icons-' + expectedVersion);
 fs.mkdirSync(output, { recursive: true });
 const targets = await (await fetch('http://127.0.0.1:9233/json/list')).json();
 const page = targets.find(p => p.type === 'page' && p.url.includes('app.local'));
@@ -73,7 +74,7 @@ try {
   }
   assert.equal(await evaluate('StartupManagerUi.getState().mode'), 'native');
   const version = await evaluate('document.querySelector(".sidebar-version").textContent.trim()');
-  assert.equal(version, '版本 1.1.2');
+  assert.equal(version, '版本 ' + expectedVersion);
   const report = { version, categories: {}, errors };
   const gallery = [];
   for (const category of ['startup', 'service', 'task', 'packaged']) {

@@ -432,7 +432,7 @@ internal sealed class BridgeHost : IDisposable
             var detail = string.IsNullOrWhiteSpace(protectedItem.ProtectionReason)
                 ? string.Empty
                 : " " + protectedItem.ProtectionReason;
-            Reject(requestId, $"“{protectedItem.Name}”受系统保护，无法更改。{detail}");
+            Reject(requestId, $"“{protectedItem.Name}”尚未解除保护，请先在详情中查看管理方式。{detail}");
             return;
         }
 
@@ -673,60 +673,17 @@ internal sealed class BridgeHost : IDisposable
         }
 
         var allowed = allowedElement.GetBoolean();
-        var snapshot = _snapshot;
-        if (snapshot is null)
-        {
-            Reject(requestId, "尚未完成扫描，请刷新后重试。");
-            return;
-        }
-
-        var item = snapshot.Items.FirstOrDefault(candidate =>
-            string.Equals(candidate.Id, itemId, StringComparison.Ordinal));
-        if (item is null)
-        {
-            Reject(requestId, "启动项不存在或已变化，请刷新后重试。");
-            return;
-        }
-
-        if (allowed && (!item.CanOverride || (!item.Protected && !item.UserAllowed)))
-        {
-            Reject(requestId, "此项目不属于可解除的未验证保护项。");
-            return;
-        }
-
-        if (!allowed && !item.UserAllowed)
-        {
-            Reject(requestId, "此项目当前没有用户允许记录。");
-            return;
-        }
-
         try
         {
-            var settings = Clone(manager.Settings);
-            var ids = settings.UserAllowedItemIds;
-            if (allowed)
+            var result = await manager.SetUserOverrideAsync(itemId, allowed, cancellationToken);
+            if (!result.Success)
             {
-                if (!ids.Contains(itemId, StringComparer.Ordinal))
-                {
-                    ids.Add(itemId);
-                }
+                Reject(requestId, result.Message ?? "更新项目保护状态失败。");
+                return;
             }
-            else
-            {
-                ids.RemoveAll(id => string.Equals(id, itemId, StringComparison.Ordinal));
-            }
-
-            await manager.SaveSettingsAsync(settings, cancellationToken);
             CurrentSettings = Clone(manager.Settings);
             await ReloadAfterMutationAsync(cancellationToken);
-
-            var message = allowed
-                ? "已允许管理“" + item.Name + "”。修改时仍会先备份并验证。"
-                : "已恢复“" + item.Name + "”的系统保护。";
-            SendResult(requestId, true, message);
-            AppLog.Info(allowed
-                ? $"User allowed management of {item.Name}."
-                : $"User restored protection for {item.Name}.");
+            SendResult(requestId, true, result.Message);
         }
         catch (OperationCanceledException)
         {
