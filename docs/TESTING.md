@@ -1,5 +1,18 @@
 # Testing and acceptance plan
 
+2026-11-17 / v1.1.2: Release build passes with 215 tests passed and 1 skipped.
+Six icon regression cases exercise native HBITMAP-to-PNG conversion: transparent
+and antialiased pixels, premultiplied colors, genuine black artwork, row orientation,
+non-square dimensions, legacy mask fallback, invalid handles and unavailable files.
+The app test project links the production IconService source and never starts the WPF app.
+
+`node tools/qa-icons.mjs` checks a running native host on local CDP port 9233:
+image pixels retain transparency, real-icon containers have no added shadow/border,
+images use contain without rounded clipping, and startup detail renders correctly.
+The verified snapshot contained 29 startup icons (28 with transparent pixels), 93 service
+icons and 28 task icons; there were no JavaScript errors. PNG screenshots were inspected.
+The script only reads startup configuration and temporarily adds a preview DOM element.
+
 2026-11-16 / v1.1.1: Release build passes with 209 tests passed and 1 skipped.
 New regression cases cover isolated MSIX task states, malformed data, manifest
 defaults, policy locks, common-folder restore, repeated restore, enable rollback

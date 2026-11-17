@@ -1,12 +1,22 @@
 # 启动项管理器 · 项目交接文档
 
 > 最后更新：2026-11-17  
-> 当前版本：**1.1.1**  
+> 当前版本：**1.1.2**<br>
 > 仓库：<https://github.com/zy-StarXH/Startup_Manager>  
-> 主分支：`main`，当前发布提交以 `git log` 为准（`v1.1.1` 标签）  
-> 最新发布：<https://github.com/zy-StarXH/Startup_Manager/releases/tag/v1.1.1>
+> 主分支：`main`，当前发布提交以 `git log` 为准（`v1.1.2` 标签）<br>
+> 最新发布：<https://github.com/zy-StarXH/Startup_Manager/releases/tag/v1.1.2>
 
 ## 0. 交接摘要
+
+v1.1.2 修复图标黑边：`IconService` 直接读取 Shell HBITMAP 的预乘 BGRA 像素，
+保留透明通道后编码为 PNG；不再经过丢失 alpha 的 `Image.FromHbitmap`。
+真实图标容器不再添加阴影或圆角裁剪，保留图案本身的黑色。旧式无 alpha 图标
+交给 `ExtractAssociatedIcon` 的掩码路径处理，不使用黑色抠图。
+
+本版 Release 构建：215 项测试通过、1 项因非管理员权限跳过。新增 App.Tests
+链接生产 IconService 源码验证像素。`tools/qa-icons.mjs` 对发布版做只读 CDP 验收，
+覆盖 29 个启动项图标、93 个服务图标和 28 个任务图标，列表/详情无额外边框或
+阴影，透明 PNG 与实际截图检查通过。详细说明见 `docs/releases/v1.1.2.md`。
 
 这是一个 Windows 11 开机启动项管理工具。UI 采用用户确认过的 Fluent/WinUI 风格，
 由 WPF 原生窗口承载 WebView2；C# 后端直接读取和修改真实系统状态，所有修改先备份、

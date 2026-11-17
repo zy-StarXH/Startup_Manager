@@ -319,8 +319,8 @@ h1{font-size:26px;line-height:1.2;font-weight:600;letter-spacing:-.012em;margin:
   user-select:none;overflow:hidden;
 }
 .app-ico svg{width:18px;height:18px;stroke-width:1.7}
-.app-ico.has-img{background:none;box-shadow:0 1px 2px rgba(0,0,0,.12);padding:0}
-.app-ico.has-img img{display:block;width:100%;height:100%;object-fit:contain;border-radius:inherit}
+.app-ico.has-img{background:none;box-shadow:none;border:0;border-radius:0;padding:0;overflow:visible}
+.app-ico.has-img img{display:block;width:100%;height:100%;object-fit:contain;border-radius:0}
 .app-ico.lg{width:40px;height:40px;border-radius:9px;font-size:16px}
 .app-ico.lg svg{width:21px;height:21px}
 .row.is-disabled .app-ico{filter:grayscale(.75);opacity:.55}

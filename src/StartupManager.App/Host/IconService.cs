@@ -83,10 +83,7 @@ internal sealed class IconService
                 return null;
             }
 
-            using var image = Image.FromHbitmap(bitmapHandle);
-            using var stream = new MemoryStream();
-            image.Save(stream, ImageFormat.Png);
-            return "data:image/png;base64," + Convert.ToBase64String(stream.ToArray());
+            return EncodeShellBitmap(bitmapHandle);
         }
         catch
         {
@@ -104,6 +101,61 @@ internal sealed class IconService
                 try { Marshal.ReleaseComObject(factory); } catch { /* best effort */ }
             }
         }
+    }
+
+    /// <summary>
+    /// GDI+ FromHbitmap discards the shell bitmap's alpha channel. Copy the
+    /// native premultiplied BGRA pixels instead, retaining transparent borders
+    /// and antialiased edges. No color key is used: black may be real artwork.
+    /// </summary>
+    internal static string? EncodeShellBitmap(IntPtr bitmapHandle)
+    {
+        if (GetBitmapObject(bitmapHandle, Marshal.SizeOf<NativeBitmap>(), out var native) == 0 ||
+            native.BitsPerPixel != 32 || native.Width is <= 0 or > 4096 || native.Height is <= 0 or > 4096)
+        {
+            return null;
+        }
+
+        var stride = checked(native.Width * 4);
+        var pixels = new byte[checked(stride * native.Height)];
+        var info = new BitmapInfoHeader
+        {
+            Size = (uint)Marshal.SizeOf<BitmapInfoHeader>(),
+            Width = native.Width,
+            Height = -native.Height, // Request top-down rows, regardless of native orientation.
+            Planes = 1,
+            BitCount = 32,
+            SizeImage = (uint)pixels.Length
+        };
+        var dc = CreateCompatibleDC(IntPtr.Zero);
+        if (dc == IntPtr.Zero) return null;
+        try
+        {
+            if (GetDIBits(dc, bitmapHandle, 0, (uint)native.Height, pixels, ref info, 0) != native.Height)
+                return null;
+        }
+        finally { DeleteDC(dc); }
+
+        // Legacy icons may carry only an AND mask, with no usable alpha.
+        // Let ExtractAssociatedIcon handle that mask instead of guessing colors.
+        var hasAlpha = false;
+        for (var offset = 3; offset < pixels.Length; offset += 4)
+            hasAlpha |= pixels[offset] != 0;
+        if (!hasAlpha) return null;
+
+        using var bitmap = new Bitmap(native.Width, native.Height, PixelFormat.Format32bppPArgb);
+        var data = bitmap.LockBits(new Rectangle(0, 0, native.Width, native.Height),
+            ImageLockMode.WriteOnly, PixelFormat.Format32bppPArgb);
+        try
+        {
+            for (var row = 0; row < native.Height; row++)
+                Marshal.Copy(pixels, row * stride, IntPtr.Add(data.Scan0, row * data.Stride), stride);
+        }
+        finally { bitmap.UnlockBits(data); }
+
+        using var stream = new MemoryStream();
+        bitmap.Save(stream, ImageFormat.Png);
+        return "data:image/png;base64," + Convert.ToBase64String(stream.ToArray());
     }
 
     private static string? TryAssociatedIcon(string path)
@@ -173,4 +225,36 @@ internal sealed class IconService
 
     [DllImport("gdi32.dll")]
     private static extern bool DeleteObject(IntPtr handle);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeBitmap
+    {
+        public int Type, Width, Height, WidthBytes;
+        public ushort Planes, BitsPerPixel;
+        public IntPtr Bits;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BitmapInfoHeader
+    {
+        public uint Size;
+        public int Width, Height;
+        public ushort Planes, BitCount;
+        public uint Compression, SizeImage;
+        public int XPelsPerMeter, YPelsPerMeter;
+        public uint ColorsUsed, ColorsImportant;
+    }
+
+    [DllImport("gdi32.dll", EntryPoint = "GetObjectW")]
+    private static extern int GetBitmapObject(IntPtr bitmap, int size, out NativeBitmap result);
+
+    [DllImport("gdi32.dll")]
+    private static extern IntPtr CreateCompatibleDC(IntPtr dc);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteDC(IntPtr dc);
+
+    [DllImport("gdi32.dll")]
+    private static extern int GetDIBits(IntPtr dc, IntPtr bitmap, uint start, uint lines,
+        [Out] byte[] pixels, ref BitmapInfoHeader info, uint usage);
 }
