@@ -9,8 +9,7 @@ internal readonly record struct ServiceConfiguration(
     uint ServiceType,
     uint StartType,
     bool DelayedAutoStart,
-    string BinaryPath,
-    string Description);
+    string BinaryPath);
 
 internal static class ServiceNativeMethods
 {
@@ -24,7 +23,6 @@ internal static class ServiceNativeMethods
     public const uint SERVICE_QUERY_CONFIG = 0x0001;
     public const uint SERVICE_CHANGE_CONFIG = 0x0002;
 
-    public const uint SERVICE_CONFIG_DESCRIPTION = 1;
     public const uint SERVICE_CONFIG_DELAYED_AUTO_START_INFO = 3;
 
     public const uint SERVICE_NO_CHANGE = 0xFFFFFFFF;
@@ -246,7 +244,51 @@ internal static class ServiceNative
         }
     }
 
-    /// <summary>Reads start type, delayed flag, binary path, display name, and description.</summary>
+    /// <summary>
+    /// Reads the start type, binary path, and display name in one service
+    /// handle. Delayed-auto-start is a separate call and is only read for
+    /// automatic services during a scan.
+    /// </summary>
+    public static ServiceConfiguration? TryQueryConfiguration(
+        IntPtr scManager,
+        string serviceName,
+        string fallbackDisplayName = "")
+    {
+        var serviceHandle = ServiceNativeMethods.OpenService(
+            scManager,
+            serviceName,
+            ServiceNativeMethods.SERVICE_QUERY_CONFIG);
+        if (serviceHandle == IntPtr.Zero)
+        {
+            var error = Marshal.GetLastWin32Error();
+            if (error == ServiceNativeMethods.ERROR_SERVICE_DOES_NOT_EXIST)
+            {
+                return null;
+            }
+
+            throw ServiceErrors.Create("读取服务配置", error, serviceName);
+        }
+
+        try
+        {
+            var config = ReadConfiguration(serviceHandle, serviceName);
+            var display = config.DisplayName.Length > 0 ? config.DisplayName : fallbackDisplayName;
+
+            return new ServiceConfiguration(
+                serviceName,
+                display,
+                config.ServiceType,
+                config.StartType,
+                DelayedAutoStart: false,
+                config.BinaryPathName);
+        }
+        finally
+        {
+            ServiceNativeMethods.CloseServiceHandle(serviceHandle);
+        }
+    }
+
+    /// <summary>Reads start type, delayed flag, and binary path in one handle.</summary>
     public static ServiceConfiguration? TryQuery(
         IntPtr scManager,
         string serviceName,
@@ -271,7 +313,6 @@ internal static class ServiceNative
         {
             var config = ReadConfiguration(serviceHandle, serviceName);
             var delayed = ReadDelayedAutoStart(serviceHandle);
-            var description = ReadDescription(serviceHandle);
             var display = config.DisplayName.Length > 0 ? config.DisplayName : fallbackDisplayName;
 
             return new ServiceConfiguration(
@@ -280,8 +321,29 @@ internal static class ServiceNative
                 config.ServiceType,
                 config.StartType,
                 delayed,
-                config.BinaryPathName,
-                description);
+                config.BinaryPathName);
+        }
+        finally
+        {
+            ServiceNativeMethods.CloseServiceHandle(serviceHandle);
+        }
+    }
+
+    /// <summary>Reads the delayed-auto-start flag for one service.</summary>
+    public static bool TryQueryDelayedAutoStart(IntPtr scManager, string serviceName)
+    {
+        var serviceHandle = ServiceNativeMethods.OpenService(
+            scManager,
+            serviceName,
+            ServiceNativeMethods.SERVICE_QUERY_CONFIG);
+        if (serviceHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        try
+        {
+            return ReadDelayedAutoStart(serviceHandle);
         }
         finally
         {
@@ -409,44 +471,6 @@ internal static class ServiceNative
             }
 
             return Marshal.ReadInt32(buffer) != 0;
-        }
-        finally
-        {
-            Marshal.FreeHGlobal(buffer);
-        }
-    }
-
-    private static string ReadDescription(IntPtr serviceHandle)
-    {
-        uint bytesNeeded;
-        ServiceNativeMethods.QueryServiceConfig2(
-            serviceHandle,
-            ServiceNativeMethods.SERVICE_CONFIG_DESCRIPTION,
-            IntPtr.Zero,
-            0,
-            out bytesNeeded);
-        if (bytesNeeded == 0)
-        {
-            return string.Empty;
-        }
-
-        var buffer = Marshal.AllocHGlobal((int)bytesNeeded);
-        try
-        {
-            if (!ServiceNativeMethods.QueryServiceConfig2(
-                    serviceHandle,
-                    ServiceNativeMethods.SERVICE_CONFIG_DESCRIPTION,
-                    buffer,
-                    bytesNeeded,
-                    out _))
-            {
-                return string.Empty;
-            }
-
-            var pointer = Marshal.ReadIntPtr(buffer);
-            return pointer == IntPtr.Zero
-                ? string.Empty
-                : Marshal.PtrToStringUni(pointer)?.Trim() ?? string.Empty;
         }
         finally
         {

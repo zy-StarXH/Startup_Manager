@@ -117,6 +117,141 @@ public sealed class ProtectionOverrideTests
     }
 
     [Fact]
+    public async Task Batch_unlock_and_relock_updates_all_items_without_extra_scans()
+    {
+        using var paths = new TestPaths();
+        var store = new InMemoryBackupStore(paths.Paths.BackupDirectory);
+        var services = new FakeStartupSystem(StartupSource.Service, store.Events);
+        var tasks = new FakeStartupSystem(StartupSource.Task, store.Events);
+
+        var serviceA = TestItems.Create(StartupSource.Service, name: "DiagTrack", requiresAdmin: true);
+        serviceA.Metadata["ServiceName"] = "DiagTrack";
+        serviceA.Metadata["ServiceType"] = "16";
+        var serviceB = TestItems.Create(StartupSource.Service, name: "WpnUserService", requiresAdmin: true);
+        serviceB.Metadata["ServiceName"] = "WpnUserService";
+        serviceB.Metadata["ServiceType"] = "16";
+        var task = TestItems.Create(StartupSource.Task, name: "SystemTask", requiresAdmin: true);
+        task.Metadata["TaskPath"] = @"\Microsoft\Windows\Tests\SystemTask";
+        services.AddItem(serviceA);
+        services.AddItem(serviceB);
+        tasks.AddItem(task);
+
+        var policy = new FakeProtectionPolicy
+        {
+            Rule = _ => new ProtectionDecision(true, "工具保护", true, CanOverride: true)
+        };
+        var manager = new StartupManagerService(
+            new IStartupProvider[] { services, tasks },
+            new IStartupChangeProvider[] { services, tasks },
+            policy,
+            store,
+            paths.Paths);
+
+        var initial = await manager.ScanAsync(CancellationToken.None);
+        Assert.Equal(3, initial.ProtectedCount);
+        var scansBefore = services.ScanCalls + tasks.ScanCalls;
+        var ids = initial.Items.Select(item => item.Id).ToArray();
+
+        var unlock = await manager.SetUserOverridesAsync(ids, allowed: true, CancellationToken.None);
+
+        Assert.True(unlock.AllSucceeded, unlock.Message);
+        Assert.Equal(3, unlock.SucceededCount);
+        Assert.Equal(scansBefore, services.ScanCalls + tasks.ScanCalls);
+        Assert.Equal(3, manager.Settings.UserAllowedItemIds.Count);
+
+        // The cached rows the host publishes are already unlocked.
+        var cached = manager.CachedSnapshot!;
+        Assert.All(cached.Items, item =>
+        {
+            Assert.False(item.Protected);
+            Assert.True(item.UserAllowed);
+        });
+
+        var relock = await manager.SetUserOverridesAsync(ids.Take(2).ToArray(), allowed: false, CancellationToken.None);
+
+        Assert.True(relock.AllSucceeded, relock.Message);
+        Assert.Single(manager.Settings.UserAllowedItemIds);
+        Assert.Equal(2, manager.CachedSnapshot!.ProtectedCount);
+        Assert.Equal(1, manager.CachedSnapshot!.Items.Count(item => item.UserAllowed));
+    }
+
+    [Fact]
+    public async Task Batch_unlock_reports_entries_that_windows_policy_keeps_locked()
+    {
+        using var paths = new TestPaths();
+        var store = new InMemoryBackupStore(paths.Paths.BackupDirectory);
+        var services = new FakeStartupSystem(StartupSource.Service, store.Events);
+
+        var overridable = TestItems.Create(StartupSource.Service, name: "ThirdPartyService");
+        overridable.Metadata["ServiceName"] = "ThirdPartyService";
+        overridable.Metadata["ServiceType"] = "16";
+        var policyLocked = TestItems.Create(StartupSource.Service, name: "PolicyLocked");
+        policyLocked.Metadata["ServiceName"] = "PolicyLocked";
+        policyLocked.Metadata["ServiceType"] = "16";
+        services.AddItem(overridable);
+        services.AddItem(policyLocked);
+
+        var policy = new FakeProtectionPolicy
+        {
+            Rule = item => item.Name == "PolicyLocked"
+                ? new ProtectionDecision(true, "Windows 策略限制", true, CanOverride: false)
+                : new ProtectionDecision(true, "工具保护", true, CanOverride: true)
+        };
+        var manager = new StartupManagerService(
+            new IStartupProvider[] { services },
+            new IStartupChangeProvider[] { services },
+            policy,
+            store,
+            paths.Paths);
+
+        var initial = await manager.ScanAsync(CancellationToken.None);
+        var ids = initial.Items.Select(item => item.Id).ToArray();
+
+        var result = await manager.SetUserOverridesAsync(ids, allowed: true, CancellationToken.None);
+
+        Assert.False(result.AllSucceeded);
+        Assert.Equal(1, result.SucceededCount);
+        Assert.Equal(1, result.FailedCount);
+        Assert.Contains("未更新", result.Message);
+        var allowedId = Assert.Single(manager.Settings.UserAllowedItemIds);
+        Assert.Equal(overridable.Id, allowedId);
+    }
+
+    [Fact]
+    public async Task Restore_verification_scans_only_the_backups_source()
+    {
+        using var paths = new TestPaths();
+        var store = new InMemoryBackupStore(paths.Paths.BackupDirectory);
+        var services = new FakeStartupSystem(StartupSource.Service, store.Events);
+        var registry = new FakeStartupSystem(StartupSource.Registry, store.Events);
+        var service = TestItems.Create(StartupSource.Service, enabled: false, requiresAdmin: true);
+        var registryItem = TestItems.Create(StartupSource.Registry, name: "OtherSource");
+        services.AddItem(service);
+        registry.AddItem(registryItem);
+
+        var backup = TestBackups.Create(StartupSource.Service, service.Id, requiresAdmin: true);
+        store.Add(backup);
+
+        var manager = new StartupManagerService(
+            new IStartupProvider[] { services, registry },
+            new IStartupChangeProvider[] { services, registry },
+            new FakeProtectionPolicy(),
+            store,
+            paths.Paths);
+
+        await manager.ScanAsync(CancellationToken.None);
+        var serviceScans = services.ScanCalls;
+        var registryScans = registry.ScanCalls;
+
+        var result = await manager.RestoreBackupAsync(backup.Id, isElevated: true, CancellationToken.None);
+
+        Assert.True(result.Success, result.Message);
+        Assert.True(result.Verified);
+        Assert.Equal(serviceScans + 1, services.ScanCalls);
+        Assert.Equal(registryScans, registry.ScanCalls);
+    }
+
+    [Fact]
     public async Task Windows_policy_and_failed_safety_check_cannot_be_unlocked()
     {
         using var paths = new TestPaths();

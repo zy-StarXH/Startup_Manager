@@ -44,6 +44,61 @@ public sealed class ChangeServiceTests
     }
 
     [Fact]
+    public async Task Change_reuses_the_cached_scan_and_updates_the_published_snapshot()
+    {
+        using var fixture = new Fixture();
+        await fixture.Service.ScanAsync(CancellationToken.None);
+        var scansAfterInitial = fixture.System.ScanCalls;
+
+        var result = await fixture.Service.SetEnabledAsync(
+            new[] { fixture.Item.Id },
+            enabled: false,
+            isElevated: false,
+            CancellationToken.None);
+
+        Assert.True(result.AllSucceeded, result.Message);
+        Assert.Equal(scansAfterInitial, fixture.System.ScanCalls);
+
+        var cached = Assert.Single(fixture.Service.CachedSnapshot!.Items);
+        Assert.False(cached.Enabled);
+        Assert.True(cached.ManagedByApp);
+        Assert.Single(await fixture.Service.GetBackupsAsync(includeRestored: false, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Refresh_for_external_changes_only_rescans_the_affected_source()
+    {
+        using var paths = new TestPaths();
+        var store = new InMemoryBackupStore(paths.Paths.BackupDirectory);
+        var services = new FakeStartupSystem(StartupSource.Service, store.Events);
+        var registry = new FakeStartupSystem(StartupSource.Registry, store.Events);
+        var service = TestItems.Create(StartupSource.Service, requiresAdmin: true);
+        var registryItem = TestItems.Create(StartupSource.Registry);
+        services.AddItem(service);
+        registry.AddItem(registryItem);
+
+        var manager = new StartupManagerService(
+            new IStartupProvider[] { services, registry },
+            new IStartupChangeProvider[] { services, registry },
+            new FakeProtectionPolicy(),
+            store,
+            paths.Paths);
+
+        await manager.ScanAsync(CancellationToken.None);
+        var serviceScans = services.ScanCalls;
+        var registryScans = registry.ScanCalls;
+
+        // Simulate the elevated helper applying the change in another process.
+        services.LiveItems.Single().Enabled = false;
+        await manager.RefreshSourcesForItemsAsync(new[] { service.Id }, CancellationToken.None);
+
+        Assert.Equal(serviceScans + 1, services.ScanCalls);
+        Assert.Equal(registryScans, registry.ScanCalls);
+        Assert.False(Assert.Single(manager.CachedSnapshot!.Items, item => item.Id == service.Id).Enabled);
+        Assert.True(Assert.Single(manager.CachedSnapshot!.Items, item => item.Id == registryItem.Id).Enabled);
+    }
+
+    [Fact]
     public async Task Change_disable_verification_failure_restores_original_and_marks_backup_failed()
     {
         using var fixture = new Fixture();

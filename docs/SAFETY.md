@@ -29,6 +29,14 @@ user asks, opens Explorer / Task Scheduler / Services for inspection.
   Do not infer that a protected component is advertising or unnecessary.
 - Reject protected IDs again inside the service layer, not just in the UI.
 - Batch operations skip protected entries and show the real skipped count.
+  Batch unlock/relock applies the same per-item validation and persists one
+  allowlist update; policy-locked entries are reported as skipped.
+- A mutation may reuse a scan that is at most two minutes old to resolve its
+  targets and protection flags (v1.3.0). Providers still re-read the live OS
+  state for every write and verify the result, the elevated helper performs its
+  own fresh scan, and a full rescan runs when the snapshot is missing or older
+  than the window. Never reuse a snapshot for a write without provider-level
+  live reads and verification.
 - UI action copy must describe the actual mechanism. Do not claim entries are
   deleted when StartupApproved is used.
 - Per-item permissions persist in `userAllowedItemIds`. Backend unlock requests

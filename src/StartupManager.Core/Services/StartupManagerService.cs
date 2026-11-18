@@ -17,7 +17,17 @@ public sealed partial class StartupManagerService : IStartupManager
     private readonly AppPaths _paths;
     private readonly Action<string>? _logSink;
     private readonly object _settingsGate = new();
+    private readonly object _scanCacheGate = new();
     private AppSettings _settings;
+    private ScanOutcome? _cachedOutcome;
+
+    /// <summary>
+    /// A mutation may resolve its targets from the last scan instead of walking
+    /// the machine again. The window is deliberately short so a policy change
+    /// caused by an external update is re-evaluated soon, and every provider
+    /// still re-reads the live state before writing.
+    /// </summary>
+    private static readonly TimeSpan MutationCacheLifetime = TimeSpan.FromMinutes(2);
 
     public StartupManagerService(
         IEnumerable<IStartupProvider> providers,
@@ -85,16 +95,43 @@ public sealed partial class StartupManagerService : IStartupManager
 
     public string LogDirectory => _paths.LogDirectory;
 
+    /// <summary>
+    /// The last completed scan. Items changed by this manager are updated in
+    /// place, so the host can publish state without rescanning.
+    /// </summary>
+    public StartupSnapshot? CachedSnapshot
+    {
+        get
+        {
+            var outcome = GetCachedOutcome();
+            return outcome is null ? null : CreateSnapshot(outcome);
+        }
+    }
+
     public async Task SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(settings);
 
+        var previous = GetSettingsSnapshot();
         var normalized = SettingsStore.Normalize(settings);
         await SettingsStore.SaveAsync(_paths.SettingsFile, normalized, cancellationToken).ConfigureAwait(false);
 
         lock (_settingsGate)
         {
             _settings = normalized;
+        }
+
+        if (previous.IncludeRegistry != normalized.IncludeRegistry ||
+            previous.IncludeStartupFolders != normalized.IncludeStartupFolders ||
+            previous.IncludeScheduledTasks != normalized.IncludeScheduledTasks ||
+            previous.IncludeServices != normalized.IncludeServices)
+        {
+            // The cached snapshot may be missing a category that was just enabled.
+            ClearCachedOutcome();
+        }
+        else
+        {
+            ApplyProtectionToCachedItems(normalized);
         }
 
         Log("saveSettings", null, $"已保存设置（备份保留 {normalized.BackupRetentionDays} 天）。");

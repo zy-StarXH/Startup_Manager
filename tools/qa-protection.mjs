@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const native = process.argv.includes('--native');
 const port = native ? 9233 : 9234;
-const output = path.resolve('_qa/protection-1.2.0');
+const output = path.resolve('_qa/protection-1.3.0');
 fs.mkdirSync(output, { recursive: true });
 const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
 const target = targets.find(page => page.type === 'page' && /index.html/.test(page.url));
@@ -44,7 +44,7 @@ try {
   await send('Runtime.enable');
   await wait('window.StartupManagerUi && !StartupManagerUi.getState().loading && StartupManagerUi.getState().items > 0');
   assert.equal(await evaluate('StartupBridge.mode'), native ? 'native' : 'demo'); checks++;
-  assert.equal(await evaluate('document.querySelector(".sidebar-version").textContent.trim()'), '版本 1.2.0'); checks++;
+  assert.equal(await evaluate('document.querySelector(".sidebar-version").textContent.trim()'), '版本 1.3.0'); checks++;
   await click('.category-tab[data-category="task"]');
   const itemId = await evaluate(native
     ? `document.querySelector('#startupList .row:has(.lock-chip.overridable)').dataset.id`
@@ -83,6 +83,36 @@ try {
   const screenshot = await send('Page.captureScreenshot', { format: 'png' });
   fs.writeFileSync(path.join(output, native ? 'native-confirm.png' : 'demo-confirm.png'), Buffer.from(screenshot.data, 'base64'));
   await click('#dialogCancel');
+  if (!native) {
+    // Bulk allow/relock of protected items (v1.3.0).
+    await click('.category-tab[data-category="service"]');
+    await wait('StartupManagerUi.getState().pendingOps === 0 && !document.querySelector("#bulkUnlock").disabled');
+    assert.equal(await evaluate('document.querySelector("#bulkRelock").disabled'), true); checks++;
+    const lockedRows = await evaluate('document.querySelectorAll("#startupList .lock-chip").length');
+    assert.ok(lockedRows >= 2); checks++;
+
+    await click('#bulkUnlock');
+    await wait('document.querySelector("#dialogBackdrop").classList.contains("open")');
+    assert.match(await evaluate('document.querySelector("#dialogTitle").textContent'), /允许管理这些受保护项/); checks++;
+    assert.match(await evaluate('document.querySelector("#dialogNote").textContent'), /不会改变任何启动状态/); checks++;
+    assert.match(await evaluate('document.querySelector("#dialogConfirm").textContent'), new RegExp('允许管理 ' + lockedRows + ' 项')); checks++;
+    await click('#dialogConfirm');
+    await wait('StartupManagerUi.getState().pendingOps === 0 && document.querySelectorAll("#startupList .lock-chip").length === 0');
+    assert.equal(await evaluate('document.querySelectorAll("#startupList .user-chip").length'), lockedRows); checks++;
+    assert.equal(await evaluate('document.querySelector("#bulkRelock").disabled'), false); checks++;
+    assert.equal(await evaluate('document.querySelector("#bulkUnlock").disabled'), true); checks++;
+    assert.equal(await evaluate('document.querySelectorAll("#startupList .row .switch[disabled]").length'), 0); checks++;
+
+    await click('#bulkRelock');
+    await wait('document.querySelector("#dialogBackdrop").classList.contains("open")');
+    assert.match(await evaluate('document.querySelector("#dialogConfirm").textContent'), new RegExp('恢复保护 ' + lockedRows + ' 项')); checks++;
+    await click('#dialogConfirm');
+    await wait('StartupManagerUi.getState().pendingOps === 0 && document.querySelectorAll("#startupList .lock-chip").length === ' + lockedRows);
+    assert.equal(await evaluate('document.querySelectorAll("#startupList .user-chip").length'), 0); checks++;
+    assert.equal(await evaluate('document.querySelector("#bulkUnlock").disabled'), false); checks++;
+    const bulkShot = await send('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(path.join(output, 'demo-bulk-protection.png'), Buffer.from(bulkShot.data, 'base64'));
+  }
   assert.deepEqual(errors, []); checks++;
   const report = { mode: native ? 'native' : 'demo', itemId, checks, errors };
   fs.writeFileSync(path.join(output, (native ? 'native' : 'demo') + '.json'), JSON.stringify(report, null, 2));

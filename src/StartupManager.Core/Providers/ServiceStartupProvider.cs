@@ -52,7 +52,10 @@ public sealed class ServiceStartupProvider : IStartupProvider, IStartupChangePro
                 ServiceConfiguration? configuration;
                 try
                 {
-                    configuration = ServiceNative.TryQuery(scManager, service.ServiceName, service.DisplayName);
+                    // Only the configuration is needed to decide whether this
+                    // service is a startup candidate. Delayed-auto start is a
+                    // second call and is skipped for non-automatic services.
+                    configuration = ServiceNative.TryQueryConfiguration(scManager, service.ServiceName, service.DisplayName);
                 }
                 catch (OperationCanceledException)
                 {
@@ -81,6 +84,7 @@ public sealed class ServiceStartupProvider : IStartupProvider, IStartupChangePro
                     continue;
                 }
 
+                var delayedAutoStart = ServiceNative.TryQueryDelayedAutoStart(scManager, service.ServiceName);
                 var executablePath = ServiceCommandLine.ExtractExecutablePath(current.BinaryPath);
                 var publisher = PublisherLookup.TryGetPublisher(executablePath);
                 var displayName = current.DisplayName.Trim();
@@ -109,11 +113,10 @@ public sealed class ServiceStartupProvider : IStartupProvider, IStartupChangePro
                     ["DisplayName"] = displayName,
                     ["StartType"] = effectiveStartType.ToString(CultureInfo.InvariantCulture),
                     ["OriginalStartType"] = current.StartType.ToString(CultureInfo.InvariantCulture),
-                    ["DelayedAutoStart"] = current.DelayedAutoStart ? "true" : "false",
+                    ["DelayedAutoStart"] = delayedAutoStart ? "true" : "false",
                     ["ServiceType"] = current.ServiceType.ToString(CultureInfo.InvariantCulture),
                     ["PackagedService"] = isPackaged ? "true" : "false",
-                    ["BinaryPath"] = current.BinaryPath,
-                    ["Description"] = current.Description
+                    ["BinaryPath"] = current.BinaryPath
                 };
 
                 items.Add(new StartupItem
@@ -130,7 +133,7 @@ public sealed class ServiceStartupProvider : IStartupProvider, IStartupChangePro
                     Location = "服务：" + current.ServiceName,
                     SubLocation = ServiceStartTypes.BuildSubLocation(
                         effectiveStartType,
-                        current.DelayedAutoStart,
+                        delayedAutoStart,
                         current.ServiceName) + (isPackaged ? " · 应用包服务" : string.Empty),
                     Command = ServiceCommandLine.BuildDisplayCommand(current.BinaryPath),
                     TargetPath = executablePath,

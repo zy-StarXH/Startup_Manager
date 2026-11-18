@@ -18,6 +18,7 @@ public sealed class PackagedAppStartupProvider : IStartupProvider, IStartupChang
     public const string ProviderStateKind = "packagedStartupTask";
     private const string StateRoot = @"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData";
     private const string Mechanism = "packagedStartupTask";
+    private const string ManifestFileName = "AppxManifest.xml";
     private readonly string _stateRoot;
     private readonly Func<IReadOnlyList<PackageIdentity>> _readPackages;
 
@@ -81,8 +82,7 @@ public sealed class PackagedAppStartupProvider : IStartupProvider, IStartupChang
     private IReadOnlyList<PackagedStartupTask> EnumerateTasks(CancellationToken cancellationToken)
     {
         var tasks = new Dictionary<string, PackagedStartupTask>(StringComparer.OrdinalIgnoreCase);
-        var packages = _readPackages();
-        foreach (var package in packages)
+        foreach (var package in _readPackages())
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (package.InstallLocation.Length == 0)
@@ -90,65 +90,139 @@ public sealed class PackagedAppStartupProvider : IStartupProvider, IStartupChang
                 continue;
             }
 
-            var manifestPath = Path.Combine(package.InstallLocation, "AppxManifest.xml");
-            XDocument manifest;
-            try
-            {
-                manifest = XDocument.Load(manifestPath, LoadOptions.None);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
+            var manifest = TryReadManifest(package.InstallLocation);
+            if (manifest is null)
             {
                 continue;
             }
 
-            var publisher = ReadManifestPublisher(manifest) ?? package.PublisherDisplayName;
-            foreach (var element in manifest.Descendants().Where(
-                         node => node.Name.LocalName == "StartupTask" &&
-                                 node.Parent?.Name.LocalName == "Extension" &&
-                                 string.Equals(
-                                     (string?)node.Parent.Attribute("Category"),
-                                     "windows.startupTask",
-                                     StringComparison.OrdinalIgnoreCase)))
+            foreach (var element in StartupTaskElements(manifest))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var taskId = ((string?)element.Attribute("TaskId") ?? string.Empty).Trim();
-                if (!IsValidTaskId(taskId))
+                var task = CreateTask(element, package);
+                if (task is null)
                 {
                     continue;
                 }
 
-                var appId = FindAppUserModelId(element, package.FamilyName);
-                var executable = ((string?)element.Parent?.Attribute("Executable") ??
-                    (string?)element.Ancestors().FirstOrDefault(node => node.Name.LocalName == "Application")?.Attribute("Executable") ?? string.Empty).Trim();
-                var id = CreateId(package.FamilyName, taskId);
-                var task = new PackagedStartupTask(
-                    id,
-                    package.FamilyName,
-                    appId,
-                    taskId,
-                    ResolveDisplayName(element, package),
-                    publisher,
-                    executable,
-                    ResolveTarget(package.InstallLocation, executable),
-                    string.Equals((string?)element.Attribute("Enabled"), "true", StringComparison.OrdinalIgnoreCase) ? 2 : 0);
                 var state = ReadState(task) ?? task.DefaultState;
                 if (state is < 0 or > 4)
                 {
                     continue;
                 }
-                tasks[id] = task;
+
+                tasks[task.Id] = task;
             }
         }
 
         return tasks.Values.OrderBy(task => task.DisplayName, StringComparer.CurrentCultureIgnoreCase).ToArray();
     }
 
+    /// <summary>
+    /// Reads only the manifest of the package that owns the task. A full package
+    /// enumeration is not needed for a change and would cost seconds on machines
+    /// with many installed packages.
+    /// </summary>
+    private PackagedStartupTask? FindDeclaredTask(
+        string packageFamilyName,
+        string taskId,
+        CancellationToken cancellationToken)
+    {
+        PackageIdentity? package = null;
+        foreach (var candidate in _readPackages())
+        {
+            if (string.Equals(candidate.FamilyName, packageFamilyName, StringComparison.OrdinalIgnoreCase))
+            {
+                package = candidate;
+                break;
+            }
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        if (package is null || package.InstallLocation.Length == 0)
+        {
+            return null;
+        }
+
+        var manifest = TryReadManifest(package.InstallLocation);
+        if (manifest is null)
+        {
+            return null;
+        }
+
+        foreach (var element in StartupTaskElements(manifest))
+        {
+            var task = CreateTask(element, package);
+            if (task is not null && string.Equals(task.TaskId, taskId, StringComparison.OrdinalIgnoreCase))
+            {
+                return task;
+            }
+        }
+
+        return null;
+    }
+
+    private static List<XElement> StartupTaskElements(XDocument manifest)
+    {
+        return manifest.Descendants()
+            .Where(node => node.Name.LocalName == "StartupTask" &&
+                node.Parent?.Name.LocalName == "Extension" &&
+                string.Equals(
+                    (string?)node.Parent.Attribute("Category"),
+                    "windows.startupTask",
+                    StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private static PackagedStartupTask? CreateTask(XElement element, PackageIdentity package)
+    {
+        var taskId = ((string?)element.Attribute("TaskId") ?? string.Empty).Trim();
+        if (!IsValidTaskId(taskId))
+        {
+            return null;
+        }
+
+        var appId = FindAppUserModelId(element, package.FamilyName);
+        var executable = ((string?)element.Parent?.Attribute("Executable") ??
+            (string?)element.Ancestors().FirstOrDefault(node => node.Name.LocalName == "Application")?.Attribute("Executable") ?? string.Empty).Trim();
+        return new PackagedStartupTask(
+            CreateId(package.FamilyName, taskId),
+            package.FamilyName,
+            appId,
+            taskId,
+            ResolveDisplayName(element, package),
+            ReadManifestPublisher(package, element),
+            executable,
+            ResolveTarget(package.InstallLocation, executable),
+            string.Equals((string?)element.Attribute("Enabled"), "true", StringComparison.OrdinalIgnoreCase) ? 2 : 0);
+    }
+
+    private static XDocument? TryReadManifest(string installLocation)
+    {
+        var manifestPath = Path.Combine(installLocation, ManifestFileName);
+        try
+        {
+            // Reading the text first skips XML parsing for the many packages that
+            // declare no startup task at all.
+            var text = File.ReadAllText(manifestPath);
+            if (!text.Contains("startupTask", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return XDocument.Parse(text, LoadOptions.None);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
+        {
+            return null;
+        }
+    }
+
     private StateSnapshot CaptureState(StartupItem item, CancellationToken cancellationToken)
     {
         var task = ResolveTask(item);
         cancellationToken.ThrowIfCancellationRequested();
-        var live = EnumerateTasks(cancellationToken).FirstOrDefault(candidate =>
-            string.Equals(candidate.Id, task.Id, StringComparison.OrdinalIgnoreCase))
+        var declared = FindDeclaredTask(task.PackageFamilyName, task.TaskId, cancellationToken)
             ?? throw new InvalidOperationException("该应用包启动任务已不存在，请刷新后重试。");
         using var hive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Default);
         using var key = hive.OpenSubKey(GetTaskKeyPath(task), writable: false);
@@ -167,7 +241,7 @@ public sealed class PackagedAppStartupProvider : IStartupProvider, IStartupChang
         {
             Kind = ProviderStateKind,
             Json = JsonSerializer.Serialize(snapshot, JsonDefaults.Options),
-            Summary = $"应用包启动任务：{task.TaskId}；原本已{((state ?? live.DefaultState) is 2 or 4 ? "启用" : "禁用")}"
+            Summary = $"应用包启动任务：{task.TaskId}；原本已{((state ?? declared.DefaultState) is 2 or 4 ? "启用" : "禁用")}"
         };
     }
 
@@ -175,14 +249,10 @@ public sealed class PackagedAppStartupProvider : IStartupProvider, IStartupChang
     {
         var task = ResolveTask(item);
         cancellationToken.ThrowIfCancellationRequested();
-        var live = EnumerateTasks(cancellationToken).FirstOrDefault(candidate =>
-                string.Equals(candidate.Id, task.Id, StringComparison.OrdinalIgnoreCase));
-        if (live is null)
-        {
-            throw new InvalidOperationException("该应用包启动任务已不存在，请刷新后重试。");
-        }
+        var declared = FindDeclaredTask(task.PackageFamilyName, task.TaskId, cancellationToken)
+            ?? throw new InvalidOperationException("该应用包启动任务已不存在，请刷新后重试。");
 
-        var state = ReadState(live) ?? live.DefaultState;
+        var state = ReadState(task) ?? declared.DefaultState;
         if (state is 3 or 4)
             throw new InvalidOperationException("此应用包启动任务由系统策略控制，未做任何更改。");
 
@@ -211,6 +281,11 @@ public sealed class PackagedAppStartupProvider : IStartupProvider, IStartupChang
     {
         var task = ResolveTask(item);
         cancellationToken.ThrowIfCancellationRequested();
+        if (FindDeclaredTask(task.PackageFamilyName, task.TaskId, cancellationToken) is null)
+        {
+            return false;
+        }
+
         return ReadState(task) == (enabled ? 2 : 1);
     }
 
@@ -337,17 +412,49 @@ public sealed class PackagedAppStartupProvider : IStartupProvider, IStartupChang
             var packages = new List<PackageIdentity>();
             foreach (var package in manager.FindPackagesForUser(string.Empty))
             {
-                if (!IsValidFamilyName(package.Id.FamilyName))
+                var familyName = package.Id?.FamilyName;
+                if (familyName is null || !IsValidFamilyName(familyName))
+                {
+                    continue;
+                }
+
+                // InstalledLocation is a StorageFolder activation and costs tens
+                // of milliseconds per package; InstalledPath is the plain string
+                // that makes a full scan practical. Fall back only when the
+                // string property is unavailable.
+                string installLocation;
+                try
+                {
+                    installLocation = package.InstalledPath ?? string.Empty;
+                }
+                catch (Exception)
+                {
+                    installLocation = string.Empty;
+                }
+
+                if (installLocation.Length == 0)
+                {
+                    try
+                    {
+                        installLocation = package.InstalledLocation.Path ?? string.Empty;
+                    }
+                    catch (Exception)
+                    {
+                        installLocation = string.Empty;
+                    }
+                }
+
+                if (installLocation.Length == 0)
                 {
                     continue;
                 }
 
                 packages.Add(new PackageIdentity(
-                    package.Id.FamilyName,
-                    package.Id.Name,
-                    package.InstalledLocation.Path,
-                    package.DisplayName,
-                    package.PublisherDisplayName));
+                    familyName,
+                    package.Id!.Name,
+                    installLocation,
+                    () => TryReadPackageString(() => package.DisplayName),
+                    () => TryReadPackageString(() => package.PublisherDisplayName)));
             }
 
             return packages;
@@ -358,25 +465,33 @@ public sealed class PackagedAppStartupProvider : IStartupProvider, IStartupChang
         }
     }
 
-    internal sealed record PackageIdentity(
-        string FamilyName,
-        string Name,
-        string InstallLocation,
-        string DisplayName,
-        string PublisherDisplayName);
-
-    private static string? ReadManifestPublisher(XDocument manifest)
+    private static string TryReadPackageString(Func<string> read)
     {
-        var publisher = ((string?)manifest.Root?.Element(manifest.Root.Name.Namespace + "Identity")?.Attribute("Publisher"))?.Trim();
+        try
+        {
+            return read() ?? string.Empty;
+        }
+        catch (Exception)
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string ReadManifestPublisher(PackageIdentity package, XElement taskElement)
+    {
+        var publisher = ((string?)taskElement.Document?.Root?
+            .Element(taskElement.Document!.Root.Name.Namespace + "Identity")?
+            .Attribute("Publisher"))?.Trim();
         if (publisher is null || publisher.Length == 0)
         {
-            return null;
+            return package.PublisherDisplayName;
         }
 
-        return string.Join(", ", publisher.Split(',')
+        var name = string.Join(", ", publisher.Split(',')
             .Select(part => part.Trim())
             .Where(part => part.StartsWith("CN=", StringComparison.OrdinalIgnoreCase))
             .Select(part => part[3..]));
+        return name.Length > 0 ? name : package.PublisherDisplayName;
     }
 
     private static string ResolveDisplayName(XElement element, PackageIdentity package)
@@ -419,6 +534,65 @@ public sealed class PackagedAppStartupProvider : IStartupProvider, IStartupChang
     private static bool IsValidTaskId(string? value) =>
         !string.IsNullOrWhiteSpace(value) && value.Length <= 256 &&
         value.All(character => char.IsLetterOrDigit(character) || character is '.' or '-' or '_');
+
+    /// <summary>
+    /// A package that may declare a startup task. The display names are resolved
+    /// lazily: reading them from the deployment API is much more expensive than
+    /// reading the install path, and most packages never need them.
+    /// </summary>
+    internal sealed class PackageIdentity
+    {
+        private readonly Func<string> _displayName;
+        private readonly Func<string> _publisherDisplayName;
+        private string? _resolvedDisplayName;
+        private string? _resolvedPublisherDisplayName;
+
+        public PackageIdentity(
+            string familyName,
+            string name,
+            string installLocation,
+            string displayName,
+            string publisherDisplayName)
+            : this(familyName, name, installLocation, () => displayName, () => publisherDisplayName)
+        {
+        }
+
+        public PackageIdentity(
+            string familyName,
+            string name,
+            string installLocation,
+            Func<string> displayName,
+            Func<string> publisherDisplayName)
+        {
+            FamilyName = familyName;
+            Name = name;
+            InstallLocation = installLocation;
+            _displayName = displayName;
+            _publisherDisplayName = publisherDisplayName;
+        }
+
+        public string FamilyName { get; }
+
+        public string Name { get; }
+
+        public string InstallLocation { get; }
+
+        public string DisplayName => _resolvedDisplayName ??= Read(_displayName);
+
+        public string PublisherDisplayName => _resolvedPublisherDisplayName ??= Read(_publisherDisplayName);
+
+        private static string Read(Func<string> read)
+        {
+            try
+            {
+                return read() ?? string.Empty;
+            }
+            catch (Exception)
+            {
+                return string.Empty;
+            }
+        }
+    }
 
     private sealed record PackagedStartupTask(
         string Id,

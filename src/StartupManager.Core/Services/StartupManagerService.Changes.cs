@@ -32,7 +32,8 @@ public sealed partial class StartupManagerService
             }
         }
 
-        var outcome = await ScanCoreAsync(cancellationToken, respectSettings: true).ConfigureAwait(false);
+        var outcome = await GetOutcomeForMutationAsync(SourcesForIds(ids), cancellationToken)
+            .ConfigureAwait(false);
 
         var byId = new Dictionary<string, StartupItem>(StringComparer.Ordinal);
         foreach (var item in outcome.Items)
@@ -77,6 +78,7 @@ public sealed partial class StartupManagerService
         var results = new List<ChangeResult>(targets.Count);
         var elevationRequired = false;
         string? elevationMessage = null;
+        var liveViewChanged = false;
 
         foreach (var target in targets)
         {
@@ -90,11 +92,20 @@ public sealed partial class StartupManagerService
                     .OrderByDescending(backup => backup.CreatedAt)
                     .ToList();
 
+                // A backup-only row has no live metadata yet; enabling it creates
+                // the live entry, so the cached snapshot must be rebuilt.
+                var wasLive = outcome.LiveIds.Contains(target.Id);
+
                 result = enabled
                     ? await EnableItemAsync(target, outcome.LiveIds, activeForItem, isElevated, cancellationToken)
                         .ConfigureAwait(false)
                     : await DisableItemAsync(target, activeForItem, isElevated, cancellationToken)
                         .ConfigureAwait(false);
+
+                if (result.Success && enabled && !wasLive)
+                {
+                    liveViewChanged = true;
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -115,6 +126,14 @@ public sealed partial class StartupManagerService
                 target.Id,
                 result.Success ? "成功" : "失败：" + (result.Error ?? result.Message ?? "未知错误"));
 
+            if (result.Success && target.Enabled != enabled)
+            {
+                // The provider verified the write; reflect it immediately so the
+                // UI does not need a full rescan.
+                target.Enabled = enabled;
+                target.ManagedByApp = !enabled;
+            }
+
             if (result.RequiresElevation && !isElevated)
             {
                 elevationRequired = true;
@@ -122,6 +141,11 @@ public sealed partial class StartupManagerService
                 break;
             }
         }
+
+        // Keep the published snapshot and the active-backup list accurate even
+        // when the batch stops at the first elevation request.
+        await RefreshCachedSnapshotAfterChangesAsync(liveViewChanged, cancellationToken)
+            .ConfigureAwait(false);
 
         var message = BuildBatchMessage(enabled, results, elevationRequired, elevationMessage);
         Log("setEnabled", null, "批次结束：" + message);
@@ -206,10 +230,17 @@ public sealed partial class StartupManagerService
         }
 
         bool verified;
+        ScanOutcome? verificationScan = null;
         try
         {
-            var after = await ScanCoreAsync(cancellationToken, respectSettings: false).ConfigureAwait(false);
-            verified = after.Items.Any(
+            // Only the source that owns the backup has to be read back; a full
+            // machine scan would make every restore several seconds slower.
+            verificationScan = await ScanCoreAsync(
+                    cancellationToken,
+                    respectSettings: false,
+                    onlySources: SourceSet(backup.Source))
+                .ConfigureAwait(false);
+            verified = verificationScan.Items.Any(
                 item => string.Equals(item.Id, backup.ItemId, StringComparison.Ordinal) && item.Enabled);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -234,6 +265,16 @@ public sealed partial class StartupManagerService
         backup.VerifiedAt = DateTimeOffset.Now;
         backup.Error = null;
         await TryUpdateAsync(backup, cancellationToken).ConfigureAwait(false);
+
+        if (verificationScan is not null)
+        {
+            await UpdateCachedFromScopedScanAsync(
+                    verificationScan,
+                    backup.Source,
+                    backup.ItemId,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         Log("restore", backup.ItemId, "已恢复并通过验证。");
         return new ChangeResult
@@ -654,7 +695,11 @@ public sealed partial class StartupManagerService
         bool verified;
         try
         {
-            var after = await ScanCoreAsync(cancellationToken, respectSettings: false).ConfigureAwait(false);
+            var after = await ScanCoreAsync(
+                    cancellationToken,
+                    respectSettings: false,
+                    onlySources: SourceSet(item.Source))
+                .ConfigureAwait(false);
             verified = after.Items.Any(
                 candidate => string.Equals(candidate.Id, item.Id, StringComparison.Ordinal) && candidate.Enabled);
         }
@@ -690,6 +735,104 @@ public sealed partial class StartupManagerService
             BackupId = backup.Id,
             Message = "已恢复自启动。"
         };
+    }
+
+    private static HashSet<StartupSource> SourceSet(StartupSource source) =>
+        new() { source };
+
+    private static HashSet<StartupSource> SourcesForIds(IEnumerable<string> itemIds)
+    {
+        var sources = new HashSet<StartupSource>();
+        foreach (var itemId in itemIds)
+        {
+            var source = StartupItemIds.TryGetSource(itemId);
+            if (source.HasValue)
+            {
+                sources.Add(source.Value);
+            }
+        }
+
+        return sources;
+    }
+
+    /// <summary>
+    /// Keeps the shared snapshot usable for the next mutation without another
+    /// scan. A change that creates a live entry (enabling a backup-only row)
+    /// cannot be represented by patching, so that rare case rescans fully.
+    /// </summary>
+    private async Task RefreshCachedSnapshotAfterChangesAsync(
+        bool liveViewChanged,
+        CancellationToken cancellationToken)
+    {
+        var cached = GetCachedOutcome();
+        if (cached is null)
+        {
+            // No snapshot is published here (one-shot elevated helper).
+            return;
+        }
+
+        try
+        {
+            if (liveViewChanged)
+            {
+                var fresh = await ScanCoreAsync(cancellationToken, respectSettings: true).ConfigureAwait(false);
+                StoreCachedOutcome(fresh);
+                return;
+            }
+
+            var active = await _backupStore.GetActiveAsync(cancellationToken).ConfigureAwait(false);
+            StoreCachedOutcome(cached with { ActiveBackups = active });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Log("refresh", null, "更新本地快照失败：" + ex.GetType().Name + "：" + ex.Message);
+            ClearCachedOutcome();
+        }
+    }
+
+    /// <summary>Folds a single-source verification scan back into the shared snapshot.</summary>
+    private async Task UpdateCachedFromScopedScanAsync(
+        ScanOutcome scoped,
+        StartupSource source,
+        string? changedItemId,
+        CancellationToken cancellationToken)
+    {
+        var cached = GetCachedOutcome();
+        if (cached is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var merged = MergeScopedInto(cached, scoped, SourceSet(source));
+            if (changedItemId is not null)
+            {
+                var changed = merged.Items.FirstOrDefault(
+                    item => string.Equals(item.Id, changedItemId, StringComparison.Ordinal));
+                if (changed is not null)
+                {
+                    // The backup was just restored, so no active record remains.
+                    changed.ManagedByApp = false;
+                }
+            }
+
+            var active = await _backupStore.GetActiveAsync(cancellationToken).ConfigureAwait(false);
+            StoreCachedOutcome(merged with { ActiveBackups = active });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Log("refresh", changedItemId, "更新本地快照失败：" + ex.GetType().Name + "：" + ex.Message);
+            ClearCachedOutcome();
+        }
     }
 
     private async Task<bool> TryRollbackAsync(

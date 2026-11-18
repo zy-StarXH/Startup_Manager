@@ -1,19 +1,40 @@
 # 启动项管理器 · 项目交接文档
 
-> 最后更新：2026-11-17  
-> 当前版本：**1.2.0**<br>
+> 最后更新：2026-11-18  
+> 当前版本：**1.3.0**<br>
 > 仓库：<https://github.com/zy-StarXH/Startup_Manager>  
-> 主分支：`main`，当前发布提交以 `git log` 为准（`v1.2.0` 标签）<br>
-> 最新发布：<https://github.com/zy-StarXH/Startup_Manager/releases/tag/v1.2.0>
+> 主分支：`main`，当前发布提交以 `git log` 为准（`v1.3.0` 标签）<br>
+> 最新发布：<https://github.com/zy-StarXH/Startup_Manager/releases/tag/v1.3.0>
 
 ## 0. 交接摘要
+
+v1.3.0 解决“每次开关都要等很久”，并给受保护项增加批量管理：
+
+- 开关不再前后各做一次全量扫描。`StartupManagerService` 保留最近一次扫描
+  （`CachedSnapshot`），修改时复用其定位目标与保护状态，写入验证后按项更新
+  `Enabled`/`ManagedByApp` 并重读活跃备份，桥接层直接发布缓存快照。快照超过
+  2 分钟或不存在时，只扫描目标 id 所属的来源；一次性提权助手也走同一路径。
+- 提权操作完成后，主机通过 `RefreshSourcesForItemsAsync` 只重读受影响的来源。
+- 扫描本身：MSIX 使用 `InstalledPath`（避免逐包 `StorageFolder` 激活）、清单
+  先做子串过滤再解析、服务只为自动启动项读取延迟标志且不再读描述、发布者缓存、
+  五个来源并行扫描。
+- 工具栏新增“允许管理…/恢复保护…”，对当前分类+搜索范围内的保护项批量操作；
+  核心方法 `SetUserOverridesAsync` 一次扫描 + 一次设置写入，逐项报告结果；
+  `setUserOverrides` 是新的桥接命令。
+- 安全语义不变：每次写入前后备份/验证/回滚；提权助手独立重扫并重新校验保护；
+  Windows 策略锁定项仍不可覆盖。
+
+验证：230 项测试通过、1 项权限相关跳过（224 Core + 6 App）；演示 UI 37 项检查；
+原生宿主真实注册表开关 230-330 ms；提权助手直跑 414-562 ms；全量扫描
+2.3-3.2 秒。说明见
+`docs/releases/v1.3.0.md`。
 
 v1.2.0 新增工具保护项的逐项管理：所有工具分类的保护项（包括系统/核心/安全/
 Microsoft/驱动相关/未验证项）默认锁定，但用户可在详情确认“允许管理”，并随时
 “恢复工具保护”。Windows 策略限制和安全检查失败仍不可覆盖。此行为由用户明确
 要求新增，替代旧版本“硬系统保护不可覆盖”的规则。
 
-`StartupManagerService.SetUserOverrideAsync` 重新扫描校验请求并保存用户许可；
+`StartupManagerService.SetUserOverrideAsync` 重新校验请求并保存用户许可；
 解锁和重新锁定不修改启动状态。备份生成的禁用行也重新应用保护和许可；恢复中心
 仍可还原已有备份。解锁后继续执行 UAC、备份、验证和失败回滚，不绕过 Windows ACL。
 

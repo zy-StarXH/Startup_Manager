@@ -418,6 +418,23 @@
     }
 
     el.bulkDisable.disabled = noData || ui.scanPending || counts.manageable === 0 || mutationOps().length > 0;
+
+    var visibleItems = noData ? [] : filteredItems();
+    var unlockable = visibleItems.filter(function (item) { return item.protected && item.canOverride; });
+    var relockable = visibleItems.filter(function (item) { return item.userAllowed; });
+    if (el.bulkUnlock) {
+      el.bulkUnlock.disabled = noData || ui.scanPending || unlockable.length === 0 || mutationOps().length > 0;
+      el.bulkUnlock.title = unlockable.length
+        ? '允许管理当前列表中的 ' + unlockable.length + ' 个工具保护项'
+        : '当前列表中没有可解锁的工具保护项';
+    }
+    if (el.bulkRelock) {
+      el.bulkRelock.disabled = noData || ui.scanPending || relockable.length === 0 || mutationOps().length > 0;
+      el.bulkRelock.title = relockable.length
+        ? '为当前列表中的 ' + relockable.length + ' 个项目恢复工具保护'
+        : '当前列表中没有已允许管理的项目';
+    }
+
     renderCategoryTabs(noData);
   }
 
@@ -1042,7 +1059,7 @@
       '<div class="settings-row">' +
         '<div class="settings-text">' +
           '<div class="settings-title">启动项管理器</div>' +
-          '<div class="version-text">版本 1.2.0</div>' +
+          '<div class="version-text">版本 1.3.0</div>' +
           '<div class="settings-desc">修改前自动备份，应用后重新读取系统状态验证；验证失败会自动回滚。</div>' +
         '</div>' +
       '</div>' +
@@ -1153,6 +1170,7 @@
     }
     var ids = {};
     var bulk = false;
+    var policyOnly = ops.every(function (op) { return op.kind === 'policy'; });
     ops.forEach(function (op) {
       if (op.kind === 'bulk' || (op.itemIds && op.itemIds.length > 1)) bulk = true;
       (op.itemIds || []).forEach(function (id) { ids[id] = true; });
@@ -1161,7 +1179,9 @@
     var title = bulk && count ? '正在应用更改（' + count + ' 项）' : '正在应用更改';
     var msg = Bridge && Bridge.mode === 'demo'
       ? '演示模式：正在更新本地演示状态。'
-      : '如出现 Windows 权限提示，请允许；取消不会做任何更改。';
+      : (policyOnly
+        ? '正在保存管理权限；不会改变启动状态。'
+        : '如出现 Windows 权限提示，请允许；取消不会做任何更改。');
     showToast({ id: 'busy', type: 'info', busy: true, title: title, msg: msg, timeout: 0 });
   }
 
@@ -1457,6 +1477,89 @@
     });
   }
 
+  function openUnlockBulkDialog() {
+    if (ui.loading || ui.scanPending) return;
+    var visible = filteredItems();
+    var targets = visible.filter(function (item) { return item.protected && item.canOverride; });
+    if (!targets.length) return;
+
+    var categoryLabel = (CATEGORY_META[ui.category] || CATEGORY_META.startup).label;
+    var locked = visible.filter(function (item) { return item.protected && !item.canOverride; }).length;
+    var noteParts = ['本次只解除工具保护锁定，不会改变任何启动状态。解锁后可以逐项或批量关闭/开启它们。'];
+    if (locked > 0) {
+      noteParts.push(locked + ' 项受 Windows 策略或安全检查限制，无法解锁，会自动跳过。');
+    }
+    noteParts.push('修改系统组件可能影响 Windows、网络、设备或安全功能；后续修改仍会备份、验证并按需请求 UAC，可随时恢复工具保护。');
+
+    ui.dialog = { type: 'unlock-bulk', ids: targets.map(function (item) { return item.id; }) };
+    el.dialogTitle.textContent = '允许管理这些受保护项？';
+    el.dialogDesc.textContent = '当前' + categoryLabel + '列表中有 ' + targets.length +
+      ' 个工具保护项。' + (ui.query.trim() ? '（已按搜索条件筛选）' : '');
+    el.dialogNote.textContent = noteParts.join(' ');
+    el.dialogConfirm.textContent = '允许管理 ' + targets.length + ' 项';
+    el.dialogConfirm.dataset.action = 'confirm-unlock-bulk';
+    openDialog();
+  }
+
+  function confirmUnlockBulk() {
+    if (!ui.dialog || ui.dialog.type !== 'unlock-bulk') {
+      closeDialog();
+      return;
+    }
+    var ids = ui.dialog.ids.slice();
+    closeDialog(true);
+    if (!ids.length) return;
+    setUserOverrides(ids, true);
+  }
+
+  function openRelockBulkDialog() {
+    if (ui.loading || ui.scanPending) return;
+    var targets = filteredItems().filter(function (item) { return item.userAllowed; });
+    if (!targets.length) return;
+
+    ui.dialog = { type: 'relock-bulk', ids: targets.map(function (item) { return item.id; }) };
+    el.dialogTitle.textContent = '恢复工具保护？';
+    el.dialogDesc.textContent = '将重新锁定当前列表中的 ' + targets.length + ' 个项目。';
+    el.dialogNote.textContent =
+      '恢复保护不会改变启动状态，也不会删除已有备份。之后需要修改这些项目时，可以再次允许管理，或在恢复中心还原原始配置。';
+    el.dialogConfirm.textContent = '恢复保护 ' + targets.length + ' 项';
+    el.dialogConfirm.dataset.action = 'confirm-relock-bulk';
+    openDialog();
+  }
+
+  function confirmRelockBulk() {
+    if (!ui.dialog || ui.dialog.type !== 'relock-bulk') {
+      closeDialog();
+      return;
+    }
+    var ids = ui.dialog.ids.slice();
+    closeDialog(true);
+    if (!ids.length) return;
+    setUserOverrides(ids, false);
+  }
+
+  function setUserOverrides(ids, allowed) {
+    var promise = startOperation('setUserOverrides', { itemIds: ids.slice(), allowed: !!allowed }, {
+      kind: 'policy',
+      itemIds: ids.slice()
+    });
+
+    promise.then(function (result) {
+      finishOperation(promise);
+      showToast({
+        type: 'success',
+        title: allowed ? '已允许管理受保护项' : '已恢复工具保护',
+        msg: (result && result.message) ||
+          (allowed
+            ? '启动状态未改变；后续修改仍会备份、验证并按需请求 UAC。'
+            : '启动状态未改变，需要还原配置时请使用恢复中心。')
+      });
+    }).catch(function (error) {
+      finishOperation(promise);
+      showToast(toastForError(error, allowed ? '未能允许管理' : '未能恢复工具保护'));
+    });
+  }
+
   function trapDialogFocus(event) {
     var focusables = $$('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])', el.dialogBackdrop)
       .filter(function (node) {
@@ -1567,6 +1670,7 @@
     el.searchInput.value = '';
     updateSearchUi();
     updateFilterUi();
+    renderHeader();
     renderList();
     el.searchInput.focus();
   }
@@ -1575,6 +1679,7 @@
     ui.query = '';
     el.searchInput.value = '';
     updateSearchUi();
+    renderHeader();
     renderList();
     el.searchInput.focus();
   }
@@ -1640,11 +1745,23 @@
       case 'open-bulk-dialog':
         openBulkDialog();
         break;
+      case 'open-unlock-bulk-dialog':
+        openUnlockBulkDialog();
+        break;
+      case 'open-relock-bulk-dialog':
+        openRelockBulkDialog();
+        break;
       case 'close-dialog':
         closeDialog(true);
         break;
       case 'confirm-bulk':
         confirmBulk();
+        break;
+      case 'confirm-unlock-bulk':
+        confirmUnlockBulk();
+        break;
+      case 'confirm-relock-bulk':
+        confirmRelockBulk();
         break;
       default:
         break;
@@ -1758,6 +1875,7 @@
     if (filterButton) {
       ui.filter = filterButton.dataset.filter;
       updateFilterUi();
+      renderHeader();
       renderList();
       return;
     }
@@ -1865,6 +1983,7 @@
     el.searchInput.addEventListener('input', function () {
       ui.query = el.searchInput.value;
       updateSearchUi();
+      renderHeader();
       renderList();
     });
     el.dialogBackdrop.addEventListener('click', function (event) {
@@ -1891,6 +2010,8 @@
     el.searchInput = $('#searchInput');
     el.sortSelect = $('#sortSelect');
     el.bulkDisable = $('#bulkDisable');
+    el.bulkUnlock = $('#bulkUnlock');
+    el.bulkRelock = $('#bulkRelock');
     el.listCard = $('#listCard');
     el.startupList = $('#startupList');
     el.warningsBanner = $('#warningsBanner');
@@ -1945,6 +2066,8 @@
     openDetail: function (id) { openDetail(id); },
     refresh: function () { requestRefresh(); },
     openBulkDialog: function () { openBulkDialog(); },
+    openUnlockBulkDialog: function () { openUnlockBulkDialog(); },
+    openRelockBulkDialog: function () { openRelockBulkDialog(); },
     getState: function () {
       return {
         mode: window.StartupBridge ? window.StartupBridge.mode : 'none',

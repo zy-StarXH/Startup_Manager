@@ -109,6 +109,7 @@ unique `requestId` where a response is expected.
 { "type": "command", "requestId": "r-3", "command": "restoreBackup", "backupId": "8f4d…" }
 { "type": "command", "requestId": "r-4", "command": "saveSettings", "settings": { … } }
 { "type": "command", "requestId": "r-4b", "command": "setUserOverride", "itemId": "svc-…", "allowed": true }
+{ "type": "command", "requestId": "r-4c", "command": "setUserOverrides", "itemIds": ["svc-…", "tsk-…"], "allowed": true }
 { "type": "command", "requestId": "r-5", "command": "openItemLocation", "itemId": "reg-…" }
 { "type": "command", "requestId": "r-6", "command": "openBackupFolder" }
 { "type": "command", "requestId": "r-7", "command": "openLogFolder" }
@@ -116,13 +117,16 @@ unique `requestId` where a response is expected.
 ```
 
 Allowed commands: `refresh`, `setEnabled`, `restoreBackup`, `saveSettings`,
-`setUserOverride`, `openItemLocation`, `openBackupFolder`, `openLogFolder`,
-`copyLocation`. Unknown commands and malformed IDs must be rejected.
-`setUserOverride` delegates to `IStartupManager.SetUserOverrideAsync`. It accepts
-an explicit unlock only after a fresh backend scan confirms `canOverride=true`.
-All tool-owned protection categories can be unlocked; Windows-policy locks and
-failed safety checks cannot. Revocation also accepts a stale but valid item ID.
-Unlock/relock saves the allowlist and does not mutate the Windows startup state.
+`setUserOverride`, `setUserOverrides`, `openItemLocation`, `openBackupFolder`,
+`openLogFolder`, `copyLocation`. Unknown commands and malformed IDs must be
+rejected. `setUserOverride` and `setUserOverrides` delegate to
+`IStartupManager.SetUserOverrideAsync` / `SetUserOverridesAsync`. They accept an
+explicit unlock only after the backend re-validates the current provider and
+policy state (recent cached rows are reused; every write still re-reads the live
+OS state). All tool-owned protection categories can be unlocked; Windows-policy
+locks and failed safety checks cannot, and a batch reports those entries as
+skipped. Revocation also accepts a stale but valid item ID. Unlock/relock saves
+the allowlist once per batch and does not mutate the Windows startup state.
 
 `setEnabled` semantics:
 - Empty or unknown ids are rejected.
@@ -169,9 +173,12 @@ Other host messages:
 { "type": "settings", "settings": { … } }
 ```
 
-After any successful mutation the host must reload the snapshot and backups and
-send a full `state` message before returning the command result. The UI can
-then render verified state.
+After any successful mutation the host must send a full `state` message (with
+the current snapshot and backups) before returning the command result. The host
+publishes the manager's cached snapshot, which the manager already updated in
+place after the verified write; a full rescan is only needed when the manager
+has no snapshot or an elevated helper changed the OS from another process (then
+only the affected sources are re-read). The UI can then render verified state.
 
 ## 6. `AppSettings` JSON
 
@@ -201,7 +208,10 @@ WebView2 ZoomFactor. The web settings UI offers 0.9 / 1.0 / 1.1 / 1.25.
 - `IStartupChangeProvider.RestoreStateAsync`
 - `IProtectionPolicy.Evaluate`
 - `IBackupStore`
-- `IStartupManager` (facade used by host/helper)
+- `IStartupManager` (facade used by host/helper): `ScanAsync`, `CachedSnapshot`,
+  `RefreshSourcesForItemsAsync`, `SetEnabledAsync`, `SetUserOverrideAsync`,
+  `SetUserOverridesAsync`, `RestoreBackupAsync`, `GetBackupsAsync`,
+  `SaveSettingsAsync`
 - `IElevationCoordinator`
 
 Provider implementations:
@@ -209,9 +219,10 @@ Provider implementations:
 - `StartupManager.Core.Providers.StartupFolderProvider`
 - `StartupManager.Core.Providers.ScheduledTaskProvider`
 - `StartupManager.Core.Providers.ServiceStartupProvider`
+- `StartupManager.Core.Providers.PackagedAppStartupProvider`
 
-The composition root in the app will wire:
-`IStartupManager` = `StartupManagerService` with the four providers,
+The composition root wires:
+`IStartupManager` = `StartupManagerService` with the five providers,
 `StartupProtectionPolicy`, `JsonBackupStore`, and `AppPaths`.
 
 ## 8. Change and backup invariants

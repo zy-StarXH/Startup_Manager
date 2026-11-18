@@ -1,5 +1,33 @@
 # Testing and acceptance plan
 
+2026-11-18 / v1.3.0: Release candidate passes with **230 tests passed and 1 skipped**
+(224 Core + 6 App). New regression cases cover the cached snapshot used by
+mutations (a toggle must not rescan), in-place state updates after a verified
+write, a batch unlock/relock with one settings write and no extra scans,
+per-item reporting when a Windows policy lock refuses the batch, and scoped
+verification that re-reads only the source that owns a restored backup.
+
+Performance measurements on this machine (Release, real system, 173-176 items):
+the full scan dropped from 4.5-8.8 s to 2.3-3.2 s (Task Scheduler COM scanning is
+now the only slow provider), the MSIX provider from 2.2-3.1 s to 0.14-0.5 s, and
+a real registry toggle through the native host from several seconds to
+**230-330 ms** (click to updated state; measured on both Debug and Release
+builds, disable and enable). A cold toggle with no cached scan (the
+elevated-helper path) fell from a full scan to 38 ms for a registry item because
+only the target's provider is scanned. Running the published one-shot helper
+directly against a temporary HKCU Run value (process start + scoped scan + backup
++ apply + verify) took 414 ms to disable and 562 ms to enable; the response
+reported success and the approval bytes changed to disabled/enabled as expected.
+The temporary value, approval, backups and IPC files were removed afterwards.
+
+`node tools/qa-protection.mjs` (demo): 37 in-memory UI checks, including the new
+bulk unlock/relock dialog, per-item permission state and switch enablement;
+screenshot `_qa/protection-1.3.0/demo-bulk-protection.png` inspected.
+`node tools/qa-native-toggle.mjs` (native CDP on port 9233): creates a temporary
+HKCU Run value, toggles it off/on through the WPF host, asserts both complete
+under 3 s, and cleans the value/approval plus its backups afterwards.
+`node tools/qa-protection.mjs --native` still covers the per-item unlock dialog.
+
 2026-11-17 / v1.2.0: Release build passes with 225 tests passed and 1 skipped.
 Ten new regression cases cover tool-protected system tasks/services/Run/folder
 entries: default lock, explicit unlock, settings persistence, fresh elevated-manager

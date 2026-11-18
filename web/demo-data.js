@@ -727,6 +727,32 @@
       }, 150);
     }
 
+    function applyUserOverrides(requestId, itemIds, allowed) {
+      if (!Array.isArray(itemIds) || itemIds.length === 0) {
+        fail(requestId, '缺少要更新的启动项。');
+        return;
+      }
+      var updated = 0;
+      var skipped = 0;
+      itemIds.forEach(function (id) {
+        var item = findItem(id);
+        if (!item) { skipped++; return; }
+        if (allowed && (!item.canOverride || (!item.protected && !item.userAllowed))) { skipped++; return; }
+        item.userAllowed = allowed;
+        item.protected = protectedIds.has(item.id) && !allowed;
+        updated++;
+      });
+      currentSettings.userAllowedItemIds = items.filter(function (row) { return row.userAllowed; }).map(function (row) { return row.id; });
+      var message = allowed
+        ? ('已允许管理 ' + updated + ' 项' + (skipped ? '，' + skipped + ' 项未更新' : '') + '；启动状态未改变。')
+        : ('已恢复工具保护 ' + updated + ' 项' + (skipped ? '，' + skipped + ' 项未更新' : '') + '；启动状态未改变。');
+      later(function () {
+        emitState();
+        if (updated === 0) { fail(requestId, message); return; }
+        reply(requestId, message);
+      }, 220);
+    }
+
     function applySaveSettings(requestId, nextSettings) {
       if (!nextSettings || typeof nextSettings !== 'object') {
         fail(requestId, '设置数据无效。');
@@ -799,6 +825,10 @@
         case 'setUserOverride':
           if (typeof payload.allowed !== 'boolean') { fail(requestId, 'allowed 必须为布尔值。'); return; }
           applyUserOverride(requestId, payload.itemId, payload.allowed);
+          break;
+        case 'setUserOverrides':
+          if (typeof payload.allowed !== 'boolean') { fail(requestId, 'allowed 必须为布尔值。'); return; }
+          applyUserOverrides(requestId, payload.itemIds, payload.allowed);
           break;
         case 'restoreBackup':
           applyRestoreBackup(requestId, payload.backupId);

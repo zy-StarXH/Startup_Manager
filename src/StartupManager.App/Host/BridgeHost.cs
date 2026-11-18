@@ -270,6 +270,10 @@ internal sealed class BridgeHost : IDisposable
                 await SetUserOverrideAsync(root, requestId, cancellationToken);
                 break;
 
+            case "setUserOverrides":
+                await SetUserOverridesAsync(root, requestId, cancellationToken);
+                break;
+
             case "openItemLocation":
                 await OpenItemLocationAsync(root, requestId);
                 break;
@@ -364,37 +368,8 @@ internal sealed class BridgeHost : IDisposable
             return;
         }
 
-        if (!root.TryGetProperty("itemIds", out var idsElement) || idsElement.ValueKind != JsonValueKind.Array)
+        if (!TryReadItemIds(root, requestId, "setEnabled", out var ids))
         {
-            Reject(requestId, "setEnabled 缺少 itemIds 数组。");
-            return;
-        }
-
-        var ids = new List<string>();
-        foreach (var element in idsElement.EnumerateArray())
-        {
-            if (element.ValueKind != JsonValueKind.String)
-            {
-                Reject(requestId, "itemIds 必须由字符串组成。");
-                return;
-            }
-
-            var id = element.GetString();
-            if (string.IsNullOrWhiteSpace(id))
-            {
-                Reject(requestId, "itemIds 中包含空 ID。");
-                return;
-            }
-
-            if (!ids.Contains(id, StringComparer.Ordinal))
-            {
-                ids.Add(id);
-            }
-        }
-
-        if (ids.Count == 0)
-        {
-            Reject(requestId, "未选择任何启动项。");
             return;
         }
 
@@ -546,7 +521,7 @@ internal sealed class BridgeHost : IDisposable
                 return;
             }
 
-            await ReloadAfterMutationAsync(cancellationToken);
+            await RefreshAfterElevatedAsync(request, cancellationToken);
             var successMessage = string.IsNullOrWhiteSpace(response.Message) ? "更改已完成。" : response.Message;
             SendResult(requestId, true, successMessage);
         }
@@ -560,6 +535,57 @@ internal sealed class BridgeHost : IDisposable
             var message = "无法完成管理员操作：" + ex.Message;
             SendResult(requestId, false, message, requiresElevation: true, elevationCanceled: false);
             SendError(requestId, message);
+        }
+    }
+
+    /// <summary>
+    /// An elevated helper changed the OS in another process. Re-read only the
+    /// providers that own the changed items instead of the whole machine.
+    /// </summary>
+    private async Task RefreshAfterElevatedAsync(
+        ElevatedRequest request,
+        CancellationToken cancellationToken)
+    {
+        var manager = _backend.Manager;
+        if (manager is null)
+        {
+            return;
+        }
+
+        var ids = new List<string>();
+        if (request.ItemIds is { Count: > 0 })
+        {
+            ids.AddRange(request.ItemIds);
+        }
+        else if (!string.IsNullOrWhiteSpace(request.BackupId))
+        {
+            var backup = _backups.FirstOrDefault(
+                candidate => string.Equals(candidate.Id, request.BackupId, StringComparison.Ordinal));
+            if (!string.IsNullOrWhiteSpace(backup?.ItemId))
+            {
+                ids.Add(backup!.ItemId);
+            }
+        }
+
+        try
+        {
+            if (ids.Count == 0)
+            {
+                await ReloadAfterMutationAsync(cancellationToken, forceScan: true);
+                return;
+            }
+
+            await manager.RefreshSourcesForItemsAsync(ids, cancellationToken);
+            await ReloadAfterMutationAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Post-elevation refresh failed; falling back to a full scan.", ex);
+            await ReloadAfterMutationAsync(cancellationToken, forceScan: true);
         }
     }
 
@@ -694,6 +720,102 @@ internal sealed class BridgeHost : IDisposable
             AppLog.Error("setUserOverride failed.", ex);
             Reject(requestId, "更新项目保护状态失败：" + ex.Message);
         }
+    }
+
+    private async Task SetUserOverridesAsync(
+        JsonElement root,
+        string requestId,
+        CancellationToken cancellationToken)
+    {
+        var manager = RequireManager(requestId);
+        if (manager is null)
+        {
+            return;
+        }
+
+        if (!TryReadItemIds(root, requestId, "setUserOverrides", out var ids))
+        {
+            return;
+        }
+
+        if (!root.TryGetProperty("allowed", out var allowedElement)
+            || (allowedElement.ValueKind != JsonValueKind.True && allowedElement.ValueKind != JsonValueKind.False))
+        {
+            Reject(requestId, "setUserOverrides 缺少布尔值 allowed。");
+            return;
+        }
+
+        var allowed = allowedElement.GetBoolean();
+        try
+        {
+            var result = await manager.SetUserOverridesAsync(ids, allowed, cancellationToken);
+            if (result.SucceededCount > 0)
+            {
+                await ReloadAfterMutationAsync(cancellationToken);
+            }
+
+            var message = string.IsNullOrWhiteSpace(result.Message)
+                ? (allowed ? "已允许管理。" : "已恢复工具保护。")
+                : result.Message!;
+            var ok = result.SucceededCount > 0;
+            SendResult(requestId, ok, message);
+            if (!ok)
+            {
+                SendError(requestId, message);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("setUserOverrides failed.", ex);
+            Reject(requestId, "更新项目保护状态失败：" + ex.Message);
+        }
+    }
+
+    private bool TryReadItemIds(
+        JsonElement root,
+        string requestId,
+        string command,
+        out List<string> ids)
+    {
+        ids = new List<string>();
+        if (!root.TryGetProperty("itemIds", out var idsElement) || idsElement.ValueKind != JsonValueKind.Array)
+        {
+            Reject(requestId, command + " 缺少 itemIds 数组。");
+            return false;
+        }
+
+        foreach (var element in idsElement.EnumerateArray())
+        {
+            if (element.ValueKind != JsonValueKind.String)
+            {
+                Reject(requestId, "itemIds 必须由字符串组成。");
+                return false;
+            }
+
+            var id = element.GetString();
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                Reject(requestId, "itemIds 中包含空 ID。");
+                return false;
+            }
+
+            if (!ids.Contains(id, StringComparer.Ordinal))
+            {
+                ids.Add(id);
+            }
+        }
+
+        if (ids.Count == 0)
+        {
+            Reject(requestId, "未选择任何启动项。");
+            return false;
+        }
+
+        return true;
     }
 
     private async Task SaveSettingsAsync(JsonElement root, string requestId, CancellationToken cancellationToken)
@@ -949,7 +1071,7 @@ internal sealed class BridgeHost : IDisposable
         });
     }
 
-    private async Task ReloadAfterMutationAsync(CancellationToken cancellationToken)
+    private async Task ReloadAfterMutationAsync(CancellationToken cancellationToken, bool forceScan = false)
     {
         var manager = _backend.Manager;
         if (manager is null)
@@ -959,7 +1081,16 @@ internal sealed class BridgeHost : IDisposable
 
         try
         {
-            var snapshot = await manager.ScanAsync(cancellationToken);
+            // The manager already applied the verified change to its snapshot.
+            // Rescanning every provider here made each toggle take seconds.
+            // An elevated helper changed the OS from another process, so its
+            // result is not in this cache and has to be read back.
+            var snapshot = forceScan ? null : manager.CachedSnapshot;
+            if (snapshot is null)
+            {
+                snapshot = await manager.ScanAsync(cancellationToken);
+            }
+
             var warnings = new List<string>();
             var backups = await LoadBackupsAsync(manager, warnings, cancellationToken);
             await EnrichIconsAsync(snapshot, cancellationToken);
@@ -974,7 +1105,7 @@ internal sealed class BridgeHost : IDisposable
         }
         catch (Exception ex)
         {
-            AppLog.Error("Post-change rescan failed.", ex);
+            AppLog.Error("Post-change state publish failed.", ex);
             SendError(null, "更改已提交，但刷新状态失败：" + ex.Message);
         }
     }

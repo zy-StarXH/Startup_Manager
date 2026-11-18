@@ -12,6 +12,8 @@ public sealed class RecordingStartupManager : IStartupManager
 
     public string LogDirectory { get; set; } = "logs";
 
+    public StartupSnapshot? CachedSnapshot { get; set; }
+
     public int ScanCalls { get; private set; }
 
     public List<string> SetEnabledItemIds { get; } = new();
@@ -55,6 +57,10 @@ public sealed class RecordingStartupManager : IStartupManager
         return Task.FromResult(new StartupSnapshot());
     }
 
+    public Task RefreshSourcesForItemsAsync(
+        IReadOnlyCollection<string> itemIds,
+        CancellationToken cancellationToken) => Task.CompletedTask;
+
     public Task<BatchChangeResult> SetEnabledAsync(
         IReadOnlyCollection<string> itemIds,
         bool enabled,
@@ -94,4 +100,18 @@ public sealed class RecordingStartupManager : IStartupManager
 
     public Task<ChangeResult> SetUserOverrideAsync(string itemId, bool allowed, CancellationToken cancellationToken) =>
         Task.FromResult(new ChangeResult { Success = true, Verified = true, ItemId = itemId });
+
+    public Task<BatchChangeResult> SetUserOverridesAsync(
+        IReadOnlyCollection<string> itemIds,
+        bool allowed,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new BatchChangeResult
+        {
+            Message = "已更新保护状态。",
+            Results = itemIds
+                .Select(id => new ChangeResult { Success = true, Verified = true, ItemId = id })
+                .ToList()
+        });
+    }
 }
